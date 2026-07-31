@@ -53,15 +53,20 @@ actor VisionEngine {
         case imageID:
             TraceLog.write("same image -> keeping context")
         default:
-            // Proven by trace: a new image reaches the model (the fingerprint
+            // Proven by trace: a new image reaches the model (its fingerprint
             // changes) but the answer keeps describing the first photo. The
-            // backend retains vision context across `respond()` calls and offers
-            // no way to clear it — `resetKVState()` throws on MLLM. Reloading the
-            // model is the only mechanism left. It is slow, so it happens only
-            // when the photo actually changes, never between follow-up questions.
-            TraceLog.write("image changed -> reloading model to clear vision context")
-            try await rebuild()
-            contextImageID = imageID
+            // backend retains vision context and `resetKVState()` throws on MLLM,
+            // so there is no supported way to clear it.
+            //
+            // Reloading the model *did* clear it, but is not shippable: every
+            // reload re-extracts (~1.5 GB) and re-compiles (~1.5 GB) with nothing
+            // reclaiming them mid-session. Three photo switches took the container
+            // to roughly 35 GB and filled the device. Failing honestly is strictly
+            // better than either a wrong answer or a bricked phone.
+            TraceLog.write("image changed -> cannot clear context on this backend")
+            throw VisionEngineError.contextResetUnsupported(
+                underlying: VisionEngineError.notLoaded
+            )
         }
 
         guard let model else { throw VisionEngineError.notLoaded }
@@ -162,7 +167,7 @@ enum VisionEngineError: LocalizedError {
         case .contextResetFailed(let underlying):
             return "Could not clear the previous image from the model: \(underlying.localizedDescription)"
         case .contextResetUnsupported:
-            return "This backend can't clear the previous photo from memory, so the answer would describe the old one. Restart the app to ask about a different photo."
+            return "This model can't switch photos while running — the answer would describe the previous one. Force-quit and reopen the app to ask about a different photo."
         }
     }
 }

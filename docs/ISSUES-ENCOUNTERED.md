@@ -97,9 +97,21 @@ imply `respond()` is stateless. The trace above shows it is not. Whatever holds
 that state is not reachable through any public API on `ZeticMLangeLLMModel`.
 **This is the single most important question for the SDK team.**
 
-**Current workaround in this app.** Reload the entire model whenever the photo
-changes (`VisionEngine.rebuild()`). Costs ~45 s per photo switch, and see issue 5
-for the crash risk.
+**There is no viable workaround.** We tried reloading the whole model on every
+photo change (`VisionEngine.rebuild()`). It *does* clear the context and produce
+correct answers — but it is unshippable:
+
+- Each reload **re-extracts ~1.5 GB and re-compiles ~1.5 GB**, and nothing
+  reclaims either until the next launch (issues 6 and 7).
+- Three photo switches in one session took the container from ~5 GB to
+  **roughly 35 GB** and filled a 256 GB device. It then fell back to 5.29 GB on
+  its own when iOS purged `Library/Caches` under pressure, which is why a
+  container measurement taken minutes later disagrees with what Settings showed.
+
+So the choice today is between a wrong answer and a bricked phone. This app now
+does neither: it refuses the second photo with an explicit message telling the
+user to relaunch. **Fixing this properly requires an SDK change** — either a way
+to clear vision context, or caching that does not duplicate the model per load.
 
 **Ask.** How should an application ask about a second image?
 
@@ -136,6 +148,14 @@ Full analysis in [SDK-STORAGE-DEFECT.md](SDK-STORAGE-DEFECT.md). Summary:
   8 entries (3.08 GB) after a single relaunch.
 - Extracted `.mlpackage`s are written to `Documents/`, which iOS never purges
   and iCloud backs up.
+
+- Extracted models accumulate too: `Documents/NativeLfmVL` measured **3.08 GB —
+  two full extractions** — after a fresh install, one added per model load with
+  nothing removing the previous.
+- Downloaded `.ztc` archives accumulate despite
+  `cacheHandlingPolicy: .REMOVE_OVERLAPPING`. Confirmed in **Live Translate MT2**,
+  a stock Zetic demo app we never modified: **four** `llmTargetModel-*` copies of
+  one model, 4.49 GB in `Application Support`, 4.77 GB total.
 
 This filled a 256 GB iPhone to the point where a 28 MB build could not install.
 See issue 7 for how that escalates into an unrecoverable crash.

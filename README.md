@@ -11,9 +11,12 @@ issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-
 > rather than this app:
 >
 > - Asking about a **second** photo returns the *first* photo's description
->   ([issue 4](docs/ISSUES-ENCOUNTERED.md)). `resetKVState()` is unsupported on
->   the CoreML backend and recreating the model segfaults, so there is no
->   application-side remedy.
+>   ([issue 4](docs/ISSUES-ENCOUNTERED.md)), proven with an instrumented trace.
+>   `resetKVState()` is unsupported on the CoreML backend, and the one mechanism
+>   that does work — reloading the model — duplicates ~3 GB on disk per switch
+>   (it took the container to ~35 GB in three switches). The app therefore
+>   **refuses the second photo** and asks you to relaunch, rather than answering
+>   wrongly or filling the device.
 > - Compiled artifacts grow ~1.5 GB per launch with no eviction. Left unchecked
 >   this **fills the device, truncates model extraction, and crashes inference
 >   with SIGSEGV** — at which point the app cannot even be reinstalled

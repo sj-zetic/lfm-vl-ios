@@ -181,6 +181,56 @@ This isolates Defect 1 cleanly: the downloaded archive is correctly reused
 across launches, while the **compiled artifacts double on every launch** because
 their cache key is not stable. Nothing evicts them.
 
+## Defect 6 — downloaded `.ztc` archives accumulate, confirmed in an untouched app
+
+`ModelCacheHandlingPolicy.REMOVE_OVERLAPPING` is the default, but re-downloads
+add a new `llmTargetModel-<hash>` directory rather than replacing the previous
+one, and nothing removes the old ones.
+
+We first saw this in our own app but withdrew the claim, because our cleanup code
+had (wrongly) been clearing `Caches/<bundle-id>` and could have caused the
+re-downloads itself. It is now confirmed independently in **Live Translate MT2**
+(`com.zeticai.demo.livetranslatehymt2`), a stock Zetic demo app on the same
+device that we have never modified and which contains none of our code:
+
+```
+Library/Application Support/ZeticMLangeCache/artifacts/4165c19af9034cd28cd89fc8ce90a0ad/
+    llmTargetModel-468793e74f5f7003
+    llmTargetModel-50cfb9e04e270efb
+    llmTargetModel-a8824919358a62a8
+    llmTargetModel-b606f6e61074df79
+```
+
+Four archive copies of the same model, timestamped 7/25–7/28. Container total
+**4.77 GB, of which 4.49 GB is `Application Support`**. The app also carries a
+`tmp/model_COREML_FP32.mlmodelc` left behind, matching Defect 3.
+
+Applications cannot safely fix this themselves: deleting the wrong directory
+removes the live model and forces a full re-download (we tried; it broke the
+app). The SDK must either replace on re-download or expose which artifact
+directory is current.
+
+## Defect 7 — every model load duplicates the model on disk
+
+Each `ZeticMLangeLLMModel` init writes a fresh extraction and a fresh compiled
+set, and neither replaces its predecessor:
+
+- `Documents/NativeLfmVL/<modelKey>/` measured **3.08 GB — two full extractions**
+  — on a *fresh install*, i.e. from two model loads.
+- `Caches/zetic_coreml_compiled` gains a new ~1.5 GB set per load (Defect 1).
+
+**Why this is severe, not just wasteful.** Reloading the model is the only way to
+clear vision context on the CoreML backend (see ISSUES-ENCOUNTERED issue 4), so
+any app that needs to switch images must pay this cost. In our test, three photo
+switches took the container from ~5 GB to **roughly 35 GB** and filled a 256 GB
+iPhone. iOS later purged `Library/Caches` under pressure, dropping it back to
+5.29 GB — so a measurement taken minutes afterwards will disagree with what the
+user saw in Settings. `zetic_coreml_compiled` reading zero entries is the
+signature of that purge.
+
+The two defects compound: *the only workaround for the context bug is the thing
+that fills the disk.* Neither can be fixed from application code.
+
 ## How this ends: the app bricks itself
 
 Left to run, Defect 1 does not merely waste space — it makes the app

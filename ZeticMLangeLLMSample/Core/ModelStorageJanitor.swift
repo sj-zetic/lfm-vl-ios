@@ -45,7 +45,7 @@ enum ModelStorageJanitor {
         // deleting them costs nothing beyond the recompile that happens anyway.
         result.prunedBytes = runSDKPrune()
         result.tmpBytes = sweepTemporaryArtifacts()
-        result.compiledBytes = purgeCompiledArtifacts()
+        result.compiledBytes = purgeCompiledArtifacts() + pruneExtractedModels()
         excludeLargeDirectoriesFromBackup()
 
         let after = ModelStorageReport.current()
@@ -112,8 +112,13 @@ enum ModelStorageJanitor {
 
     /// Keeps only the newest extraction per model.
     ///
-    /// Layout is `NativeLfmVL/<modelKey>/<archive>.ztc-<hash>/`, and a new hash
-    /// directory appears per launch.
+    /// Layout is `NativeLfmVL/<modelKey>/<archive>.ztc-<hash>/`, and a new ~1.5 GB
+    /// hash directory appears on every model load with nothing removing the old
+    /// one — measured at 3.08 GB (two extractions) after a fresh install.
+    ///
+    /// This matters more since the photo-switch workaround (issue 4) reloads the
+    /// model, so without pruning every photo change would leak another 1.5 GB.
+    /// Safe because it runs before model init, when nothing is mapped.
     private static func pruneExtractedModels() -> Int64 {
         let root = StorageLocations.extractedModels
         guard let models = try? FileManager.default.contentsOfDirectory(
