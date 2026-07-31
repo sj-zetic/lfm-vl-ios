@@ -44,6 +44,17 @@ final class VisionChatViewModel: ObservableObject {
     /// The image the engine last answered about, to predict a reload.
     private var lastAskedImageID: UUID?
 
+    /// True once this process has answered about a photo, after which the model's
+    /// vision context can no longer be cleared.
+    @Published private(set) var hasAnswered = false
+
+    /// A photo the user picked that needs a fresh process to answer about.
+    @Published private(set) var pendingPhoto: UIImage?
+    @Published private(set) var needsRelaunch = false
+
+    /// Set when this launch opened on a photo carried over from the last one.
+    @Published private(set) var restoredFromRelaunch = false
+
     private var loadStart: Date?
     private var timerTask: Task<Void, Never>?
 
@@ -75,6 +86,7 @@ final class VisionChatViewModel: ObservableObject {
                 }
             }
             loadPhase = .ready
+            restorePendingPhoto()
         } catch {
             loadFailure = error.localizedDescription
         }
@@ -142,13 +154,36 @@ final class VisionChatViewModel: ObservableObject {
     // MARK: - Image selection
 
     /// Replaces the image and clears the transcript, which belonged to the old one.
-    /// The new `imageID` is what tells the engine to drop the previous image's context.
+    ///
+    /// Once this process has answered about a photo, the model's vision context
+    /// cannot be cleared (see `VisionEngine`), so a second photo would be answered
+    /// wrongly. Rather than let that happen, the photo is stashed for the next
+    /// launch and the UI asks the user to relaunch.
     func select(_ newImage: UIImage) {
         cancelGeneration()
+
+        guard !hasAnswered else {
+            PendingPhotoStore.save(image: newImage, question: Constants.Prompt.defaultQuestion)
+            pendingPhoto = newImage
+            needsRelaunch = true
+            return
+        }
+
         image = newImage
         imageID = UUID()
         turns = []
         question = Constants.Prompt.defaultQuestion
+    }
+
+    /// Restores a photo stashed before the last relaunch, so the user only has to
+    /// tap ask.
+    private func restorePendingPhoto() {
+        guard let pending = PendingPhotoStore.take() else { return }
+        image = pending.image
+        imageID = UUID()
+        turns = []
+        question = pending.question
+        restoredFromRelaunch = true
     }
 
     // MARK: - Asking
@@ -250,6 +285,8 @@ final class VisionChatViewModel: ObservableObject {
         guard let index = turns.indices.last, turns[index].isStreaming else { return }
         turns[index].durationMs = durationMs
         turns[index].phase = .finished
+        // From here the model's vision context is locked to this photo.
+        hasAnswered = true
     }
 
     private func failLastTurn(_ message: String) {
