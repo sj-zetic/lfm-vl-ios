@@ -138,7 +138,10 @@ and recreating the model instead crashes with SIGSEGV. Details in issue 3 and 5.
 
 ## Documents
 
-- **[docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md)** — all seven issues,
-  with reproductions and asks for the SDK team. Start here.
+- **[docs/SUMMARY-FOR-SDK-TEAM.md](docs/SUMMARY-FOR-SDK-TEAM.md)** — one page,
+  ranked asks, the key evidence. **Start here.**
+- **[docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md)** — all eight issues
+  in full, with reproductions.
+- **[docs/vlm-trace-example.log](docs/vlm-trace-example.log)** — raw device trace.
 - **[docs/SDK-STORAGE-DEFECT.md](docs/SDK-STORAGE-DEFECT.md)** — the storage
   analysis in full, with clean-baseline measurements.
