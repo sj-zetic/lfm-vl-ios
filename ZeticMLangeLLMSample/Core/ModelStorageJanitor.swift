@@ -13,7 +13,6 @@ enum ModelStorageJanitor {
     private static let log = Logger(subsystem: "com.sjk.lfmvision", category: "Storage")
 
     struct Result {
-        var prunedBytes: Int64 = 0
         var tmpBytes: Int64 = 0
         var compiledBytes: Int64 = 0
         var before: Int64 = 0
@@ -33,9 +32,9 @@ enum ModelStorageJanitor {
         result.before = before.total
         log.notice("storage before cleanup:\n\(before.summary, privacy: .public)")
 
-        // Deliberately narrow. `sweepAppCache()` and `pruneDownloadedArchives()`
-        // stay disabled — they delete Apple's ANE cache and the live model archive
-        // respectively, and both broke the app.
+        // Deliberately narrow. `sweepAppCache()`, `pruneDownloadedArchives()` and
+        // `runSDKPrune()` stay disabled — they delete Apple's ANE cache and the
+        // live model archive respectively, and all three broke the app.
         //
         // `purgeCompiledArtifacts()` is enabled because leaving it off is worse:
         // the SDK adds ~1.5 GB of compiled artifacts per launch and never evicts
@@ -43,7 +42,6 @@ enum ModelStorageJanitor {
         // model extraction truncated and crashed the app with SIGSEGV mid-inference.
         // The entries are never reused — a new hash is compiled every launch — so
         // deleting them costs nothing beyond the recompile that happens anyway.
-        result.prunedBytes = runSDKPrune()
         result.tmpBytes = sweepTemporaryArtifacts()
         result.compiledBytes = purgeCompiledArtifacts() + pruneExtractedModels()
         excludeLargeDirectoriesFromBackup()
@@ -54,8 +52,7 @@ enum ModelStorageJanitor {
             storage after cleanup:
             \(after.summary, privacy: .public)
             reclaimed \(ModelStorageReport.format(result.reclaimed), privacy: .public) \
-            (sdk prune \(ModelStorageReport.format(result.prunedBytes), privacy: .public), \
-            tmp \(ModelStorageReport.format(result.tmpBytes), privacy: .public), \
+            (tmp \(ModelStorageReport.format(result.tmpBytes), privacy: .public), \
             compiled \(ModelStorageReport.format(result.compiledBytes), privacy: .public))
             """)
 
@@ -64,8 +61,15 @@ enum ModelStorageJanitor {
 
     // MARK: - Steps
 
-    /// The SDK's own supported cleanup. Runs first so we only hand-delete what it
-    /// leaves behind.
+    /// DISABLED — do not call. This broke the app.
+    ///
+    /// `pruneManaged()` deletes every file under the SDK's artifacts root that its
+    /// index no longer references. Purging the compiled artifacts and stale
+    /// extractions below leaves those index entries dangling, so the next launch's
+    /// prune drops them and takes the downloaded `.ztc` with them as an orphan.
+    /// Observed directly: a complete 1.64 GB archive present after one launch was
+    /// gone on the next, and the app re-downloaded all 1.76 GB — every launch.
+    /// Nothing else in `reclaim()` touches that directory.
     private static func runSDKPrune() -> Int64 {
         do {
             let pruned = try ModelCacheManager.shared.prune()

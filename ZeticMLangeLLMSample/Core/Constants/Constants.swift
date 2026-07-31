@@ -11,16 +11,15 @@ struct Constants {
             ProcessInfo.processInfo.environment["MLANGE_PERSONAL_KEY"] ?? "dev_YOUR_KEY_HERE"
         static let modelName = "changgeun/LFM2.5-VL-450M"
 
-        /// Requesting a GGUF quant steers backend selection to llama.cpp
-        /// (`LLMTarget.LLAMA_CPP`) instead of CoreML (`MLLM`).
+        /// Currently inert: the selection service ignores it and serves a CoreML
+        /// candidate either way. Verified on device — the request carried
+        /// `GGUF_QUANT_Q4_K_M` and the response was `coreml_1f2826b9`, one of nine
+        /// candidates, all CoreML.
         ///
-        /// Two reasons this matters on the CoreML path:
-        /// `resetKVState()` throws ("only supported on KV-persistence-capable
-        /// backends"), so the previous photo can never be cleared; and the model
-        /// is stored four times over (~6.5 GB) with a full recompile per launch.
-        /// A GGUF build is a single quantized file and supports KV reset.
-        ///
-        /// Set to `nil` to fall back to automatic selection (CoreML).
+        /// It was set in the belief that a GGUF build would avoid the CoreML path,
+        /// whose `resetKVState()` throws. That premise was wrong twice over: there
+        /// is no GGUF build of this model, and the way to clear context on the
+        /// CoreML path is `cleanUp()`, not `resetKVState()` — see `VisionEngine`.
         static let quantType: LLMQuantType? = .GGUF_QUANT_Q4_K_M
     }
 

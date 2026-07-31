@@ -15,10 +15,6 @@ actor VisionEngine {
     /// Identity of the image whose tokens are currently in the model's context.
     private var contextImageID: UUID?
 
-    /// Each rebuild costs a full CoreML recompile and leaves another ~700 MB of
-    /// artifacts on disk, so it is allowed at most once per session.
-    private var hasRebuilt = false
-
     var isLoaded: Bool { model != nil }
 
     /// Downloads (first launch only) and loads the model. Subsequent calls are no-ops.
@@ -37,7 +33,7 @@ actor VisionEngine {
         image: ZeticMLangeLLMModel.Image,
         imageID: UUID
     ) async throws -> AsyncThrowingStream<String, Error> {
-        guard model != nil else { throw VisionEngineError.notLoaded }
+        guard let model else { throw VisionEngineError.notLoaded }
 
         // NSLog rather than Logger: devicectl --console streams stdout/stderr only.
         // The fingerprint proves whether a genuinely different image reaches the
@@ -46,30 +42,15 @@ actor VisionEngine {
 
         switch contextImageID {
         case nil:
-            // First question of the session: nothing in context to clear. Clearing
-            // here crashed before any answer could be produced.
+            // First question of the session: nothing in context to clear.
             TraceLog.write("first image -> nothing to clear")
-            contextImageID = imageID
         case imageID:
             TraceLog.write("same image -> keeping context")
         default:
-            // Proven by trace: a new image reaches the model (its fingerprint
-            // changes) but the answer keeps describing the first photo. The
-            // backend retains vision context and `resetKVState()` throws on MLLM,
-            // so there is no supported way to clear it.
-            //
-            // Reloading the model *did* clear it, but is not shippable: every
-            // reload re-extracts (~1.5 GB) and re-compiles (~1.5 GB) with nothing
-            // reclaiming them mid-session. Three photo switches took the container
-            // to roughly 35 GB and filled the device. Failing honestly is strictly
-            // better than either a wrong answer or a bricked phone.
-            TraceLog.write("image changed -> cannot clear context on this backend")
-            throw VisionEngineError.contextResetUnsupported(
-                underlying: VisionEngineError.notLoaded
-            )
+            try clearContext(on: model)
         }
+        contextImageID = imageID
 
-        guard let model else { throw VisionEngineError.notLoaded }
         return try model.respond(
             systemPrompt: Constants.Prompt.system,
             userText: question,
@@ -87,42 +68,22 @@ actor VisionEngine {
 
     /// Drops the previous image's tokens from the model's context.
     ///
-    /// The failure was `try? model.resetKVState()`: a throw here means the old image
-    /// is still in context, and swallowing it meant the next question was answered
-    /// about the previous photo with no sign anything went wrong. A failed reset now
-    /// falls back to rebuilding the model, which reloads from the on-device cache
-    /// rather than the network.
-    private func clearContext() async throws {
-        guard let model else { throw VisionEngineError.notLoaded }
-
-        do {
-            try model.resetKVState()
-            TraceLog.write("resetKVState succeeded")
-        } catch {
-            // On the MLLM (CoreML) backend this always throws — reset is only
-            // implemented for KV-persistence-capable backends, i.e. LLAMA_CPP.
-            // Rebuilding the model here segfaulted (SIGSEGV in close/re-init), so
-            // fail loudly rather than crash or answer about the previous photo.
-            TraceLog.write("resetKVState THREW: \(error.localizedDescription)")
-            throw VisionEngineError.contextResetUnsupported(underlying: error)
-        }
-    }
-
-    /// Recreates the model from the on-device cache, discarding all context with it.
+    /// `respond` appends to a live transcript, so skipping this leaves the previous
+    /// photo's answer in context *and* puts the new image on the first user turn,
+    /// which is why the second photo used to be answered with the first photo's
+    /// description. `cleanUp` is the reset this backend supports: it clears the
+    /// transcript, the KV cache, and the staged image in one call.
     ///
-    /// This previously crashed with SIGSEGV, but that was while the device was out
-    /// of space and the extracted model was truncated — a corrupt-model crash, not
-    /// an API limitation. Re-enabled now that storage is healthy.
-    private func rebuild() async throws {
-        TraceLog.write("rebuild: closing model")
-        model?.close()
-        model = nil
-        contextImageID = nil
+    /// The earlier attempt used `resetKVState()`, which is implemented only for
+    /// KV-persistence-capable backends (llama.cpp) and always throws here — that
+    /// throw is what made this look unfixable.
+    private func clearContext(on model: ZeticMLangeLLMModel) throws {
         do {
-            model = try await makeModel(onProgress: nil)
-            TraceLog.write("rebuild: complete")
+            try model.cleanUp()
+            TraceLog.write("image changed -> context cleared")
         } catch {
-            TraceLog.write("rebuild FAILED: \(error.localizedDescription)")
+            // Not expected. Surface it rather than answer about the previous photo.
+            TraceLog.write("cleanUp THREW: \(error.localizedDescription)")
             throw VisionEngineError.contextResetFailed(underlying: error)
         }
     }
@@ -140,11 +101,15 @@ actor VisionEngine {
     private func makeModel(onProgress: (@Sendable (Float) -> Void)?) async throws -> ZeticMLangeLLMModel {
         TraceLog.startSession()
         TraceLog.write("requesting model quantType=\(String(describing: Constants.MLANGE.quantType))")
+        // The candidate this device is served (prefill=GPU / decode=NPU) is memory
+        // hungry, and a VL turn only needs 64-256 image tokens plus a short
+        // question, so the default 2048 context buys nothing here.
         let model = try await ZeticMLangeLLMModel(
             personalKey: Constants.MLANGE.personalAccessKey,
             name: Constants.MLANGE.modelName,
             modelMode: .RUN_AUTO,
             quantType: Constants.MLANGE.quantType,
+            initOption: LLMInitOption(nCtx: 1024),
             onDownload: onProgress
         )
         // The backend actually chosen shows up in the SDK's own
@@ -158,7 +123,6 @@ actor VisionEngine {
 enum VisionEngineError: LocalizedError {
     case notLoaded
     case contextResetFailed(underlying: Error)
-    case contextResetUnsupported(underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -166,8 +130,6 @@ enum VisionEngineError: LocalizedError {
             return "The model is not loaded yet."
         case .contextResetFailed(let underlying):
             return "Could not clear the previous image from the model: \(underlying.localizedDescription)"
-        case .contextResetUnsupported:
-            return "This model can't switch photos while running — the answer would describe the previous one. Force-quit and reopen the app to ask about a different photo."
         }
     }
 }

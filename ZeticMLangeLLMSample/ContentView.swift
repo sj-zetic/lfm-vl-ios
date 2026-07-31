@@ -160,59 +160,15 @@ struct ContentView: View {
 
     private var mainView: some View {
         VStack(spacing: 0) {
-            if viewModel.needsRelaunch {
-                relaunchView
-            } else {
-                if viewModel.restoredFromRelaunch {
-                    restoredBanner
-                }
-                imageSection
-                if viewModel.image != nil {
-                    suggestionRow
-                }
-                Divider()
-                transcript
-                Divider()
-                composer
+            imageSection
+            if viewModel.image != nil {
+                suggestionRow
             }
+            Divider()
+            transcript
+            Divider()
+            composer
         }
-    }
-
-    /// Shown when a second photo is picked. The model cannot forget the first one
-    /// without a fresh process, so the photo is held and the user is asked to
-    /// relaunch — iOS gives no supported way to quit programmatically.
-    private var relaunchView: some View {
-        VStack(spacing: 18) {
-            if let pending = viewModel.pendingPhoto {
-                Image(uiImage: pending)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-
-            VStack(spacing: 8) {
-                Label("Reopen the app for this photo", systemImage: "arrow.clockwise.circle.fill")
-                    .font(.headline)
-
-                Text("The model keeps the previous photo in memory and can't clear it, so it would answer about the old one. Swipe up to close the app, then open it again — this photo will be waiting.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 28)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
-    private var restoredBanner: some View {
-        Label("Photo carried over — ask away", systemImage: "checkmark.circle.fill")
-            .font(.caption)
-            .foregroundStyle(.green)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(Color.green.opacity(0.1))
     }
 
     private var imageSection: some View {
@@ -381,9 +337,7 @@ struct ContentView: View {
     /// is something to lose.
     private func propose(_ image: UIImage) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        // Once an answer exists, switching needs a relaunch anyway, so the
-        // "answers will be cleared" confirmation would be a pointless extra tap.
-        if viewModel.hasTranscript && !viewModel.hasAnswered {
+        if viewModel.hasTranscript {
             pendingReplacement = image
         } else {
             viewModel.select(image)
