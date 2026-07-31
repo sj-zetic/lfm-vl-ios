@@ -141,12 +141,19 @@ xcrun devicectl device copy from --device "$UDID" --domain-type appDataContainer
 
 ## Documents
 
-- **[docs/LFM-VL-INTEGRATION-GUIDE.md](docs/LFM-VL-INTEGRATION-GUIDE.md)** — how to
-  build on this SDK correctly. **Start here if you are integrating.**
-- **[docs/SUMMARY-FOR-SDK-TEAM.md](docs/SUMMARY-FOR-SDK-TEAM.md)** — one page,
-  ranked asks, the key evidence.
-- **[docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md)** — all eight issues
-  in full, with reproductions.
-- **[docs/vlm-trace-example.log](docs/vlm-trace-example.log)** — raw device trace.
-- **[docs/SDK-STORAGE-DEFECT.md](docs/SDK-STORAGE-DEFECT.md)** — the storage
-  analysis in full, with clean-baseline measurements.
+Read in this order:
+
+1. **[docs/VLM-PLAYBOOK.md](docs/VLM-PLAYBOOK.md)** — do / don't / what to check
+   next. **Start here**, whether you are a developer or an AI agent.
+2. **[docs/LFM-VL-INTEGRATION-GUIDE.md](docs/LFM-VL-INTEGRATION-GUIDE.md)** — the
+   code: session contract, image conversion, build setup, storage, debugging.
+   Written to be publishable on docs.zetic.ai.
+
+Reference material, mostly for the SDK team:
+
+- [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md) — every issue hit while
+  building this, with reproductions and how each was found.
+- [docs/SDK-STORAGE-DEFECT.md](docs/SDK-STORAGE-DEFECT.md) — the storage analysis,
+  the one substantive item still open.
+- [docs/SUMMARY-FOR-SDK-TEAM.md](docs/SUMMARY-FOR-SDK-TEAM.md) — one-page summary.
+- [docs/vlm-trace-example.log](docs/vlm-trace-example.log) — raw device trace.
