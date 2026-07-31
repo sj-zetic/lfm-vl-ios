@@ -34,12 +34,20 @@ struct AnswerBubble: View {
     private var statusLabel: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(turn.phase == .readingImage ? "Reading image…" : "Answering…")
+            Text(statusText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private var statusText: String {
+        switch turn.phase {
+        case .reloadingModel: return "New photo — reloading model (about 45s)…"
+        case .readingImage: return "Reading image…"
+        default: return "Answering…"
+        }
     }
 
     private var answerBody: some View {

@@ -67,14 +67,39 @@ point, but neither is reachable from `ZeticMLangeLLMModel`).
 Confirmed by the app's author: photo A was a woman standing in a garden; after
 switching to an unrelated photo, the model re-described the garden photo.
 
-**What this implies.** `respond(systemPrompt:userText:image:)` retains state
-between calls. Combined with issue 3, an app cannot clear that state, so the
-only remedy available today is to tear down and recreate the whole model per
-image — see issue 5 for why that also fails.
+**Instrumented proof.** The app logs an FNV fingerprint of the exact RGB buffer
+handed to `respond()`. Three consecutive photos in one session:
 
-**Note.** The MLLM backend reports itself as *not* KV-persistence-capable
-(issue 3), which would suggest `respond()` is stateless. The observed behaviour
-contradicts that. Clarifying which is true is the key question for the SDK team.
+| Question | Fingerprint | Answer |
+|---|---|---|
+| A | `13912044058735840761` | "round table, **black** surface, wine glass of deep red liquid, white plate" |
+| B | `10048966414806669662` | "**white** table, several plates of food, two wine glasses" |
+| C | `9590206458097600543` | "various objects on a table, white plates, two wine glasses, white tablecloth" |
+
+Raw trace:
+
+```
+ask imageID=3857AB0B contextImageID=none     rgb=384x512 fingerprint=13912044058735840761
+ask imageID=DEA86212 contextImageID=3857AB0B rgb=384x512 fingerprint=10048966414806669662
+ask imageID=C3A717A8 contextImageID=DEA86212 rgb=384x512 fingerprint=9590206458097600543
+```
+
+**Every fingerprint differs**, so a genuinely different image reaches the model
+each time. Yet all three answers describe photo A's dining scene, growing vaguer
+with each turn. Photos B and C were not dining scenes.
+
+**What this implies.** `respond(systemPrompt:userText:image:)` retains vision
+context between calls. Combined with issue 3, an app cannot clear it.
+
+**The contradiction we need resolved.** The MLLM backend reports itself as *not*
+KV-persistence-capable (issue 3, hence `resetKVState()` throwing), which would
+imply `respond()` is stateless. The trace above shows it is not. Whatever holds
+that state is not reachable through any public API on `ZeticMLangeLLMModel`.
+**This is the single most important question for the SDK team.**
+
+**Current workaround in this app.** Reload the entire model whenever the photo
+changes (`VisionEngine.rebuild()`). Costs ~45 s per photo switch, and see issue 5
+for the crash risk.
 
 **Ask.** How should an application ask about a second image?
 
@@ -87,9 +112,17 @@ Working around issue 4 by calling `model.close()` and re-initialising a new
 App terminated due to signal 11
 ```
 
+**Caveat on this one.** The crash occurred while the device was out of space and
+the extracted model was truncated (issue 7), so it may have been a corrupt-model
+crash rather than an API limitation. With storage healthy the app now reloads
+the model on every photo change as the workaround for issue 4 — whether that is
+stable is the open question.
+
 **Ask.** Is `close()` followed by a new `init` supported in-process? Zetic's own
 `ZeticMLangeValidationLab/LfmVL` reference creates a model per run and closes it
-in a `defer`, which suggests it should be — but it segfaults here.
+in a `defer`, which suggests it should be. If it is supported, it is currently
+the *only* way to ask about a second image — so its stability matters a great
+deal.
 
 ## 6. Storage: ~6.3 GB for a 1.6 GB model, growing per launch — **MAJOR**
 

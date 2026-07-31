@@ -41,6 +41,9 @@ final class VisionChatViewModel: ObservableObject {
     /// Identifies the current image so the engine knows when context must be cleared.
     private var imageID = UUID()
 
+    /// The image the engine last answered about, to predict a reload.
+    private var lastAskedImageID: UUID?
+
     private var loadStart: Date?
     private var timerTask: Task<Void, Never>?
 
@@ -157,7 +160,13 @@ final class VisionChatViewModel: ObservableObject {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let askedImageID = imageID
 
-        turns.append(VisionTurn(question: text))
+        // A changed photo forces a model reload; say so rather than appearing hung.
+        var turn = VisionTurn(question: text)
+        if let last = lastAskedImageID, last != askedImageID {
+            turn.phase = .reloadingModel
+        }
+        lastAskedImageID = askedImageID
+        turns.append(turn)
         question = Constants.Prompt.defaultQuestion
         isGenerating = true
 

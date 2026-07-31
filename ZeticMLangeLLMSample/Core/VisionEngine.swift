@@ -53,10 +53,14 @@ actor VisionEngine {
         case imageID:
             TraceLog.write("same image -> keeping context")
         default:
-            // DIAGNOSTIC: the MLLM backend reports no KV persistence, which implies
-            // respond() is already stateless. Proceed without clearing so an A→B
-            // trace shows whether the answer actually follows the new fingerprint.
-            TraceLog.write("image changed -> proceeding WITHOUT reset (diagnostic)")
+            // Proven by trace: a new image reaches the model (the fingerprint
+            // changes) but the answer keeps describing the first photo. The
+            // backend retains vision context across `respond()` calls and offers
+            // no way to clear it — `resetKVState()` throws on MLLM. Reloading the
+            // model is the only mechanism left. It is slow, so it happens only
+            // when the photo actually changes, never between follow-up questions.
+            TraceLog.write("image changed -> reloading model to clear vision context")
+            try await rebuild()
             contextImageID = imageID
         }
 
@@ -100,18 +104,20 @@ actor VisionEngine {
     }
 
     /// Recreates the model from the on-device cache, discarding all context with it.
+    ///
+    /// This previously crashed with SIGSEGV, but that was while the device was out
+    /// of space and the extracted model was truncated — a corrupt-model crash, not
+    /// an API limitation. Re-enabled now that storage is healthy.
     private func rebuild() async throws {
-        guard !hasRebuilt else {
-            Self.log.warning("skipping second rebuild this session; context may be stale")
-            return
-        }
-        hasRebuilt = true
+        TraceLog.write("rebuild: closing model")
         model?.close()
         model = nil
         contextImageID = nil
         do {
             model = try await makeModel(onProgress: nil)
+            TraceLog.write("rebuild: complete")
         } catch {
+            TraceLog.write("rebuild FAILED: \(error.localizedDescription)")
             throw VisionEngineError.contextResetFailed(underlying: error)
         }
     }

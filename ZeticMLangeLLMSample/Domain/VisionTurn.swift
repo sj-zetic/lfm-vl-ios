@@ -3,6 +3,9 @@ import Foundation
 /// One question-and-answer exchange about the currently selected image.
 struct VisionTurn: Identifiable {
     enum Phase {
+        /// The model is being reloaded to clear the previous photo's context —
+        /// the only way to do that on the CoreML backend, and it takes ~45s.
+        case reloadingModel
         /// The image is being encoded and prefilled — the slow part on a VLM.
         case readingImage
         /// Tokens are arriving.
@@ -23,7 +26,7 @@ struct VisionTurn: Identifiable {
     var durationMs: Int?
 
     var isStreaming: Bool {
-        phase == .readingImage || phase == .answering
+        phase == .reloadingModel || phase == .readingImage || phase == .answering
     }
 
     /// Tokens/sec, approximated from characters since the SDK streams text pieces
