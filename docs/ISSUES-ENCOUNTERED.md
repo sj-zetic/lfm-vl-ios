@@ -88,8 +88,36 @@ ask imageID=C3A717A8 contextImageID=DEA86212 rgb=384x512 fingerprint=95902064580
 each time. Yet all three answers describe photo A's dining scene, growing vaguer
 with each turn. Photos B and C were not dining scenes.
 
-**What this implies.** `respond(systemPrompt:userText:image:)` retains vision
-context between calls. Combined with issue 3, an app cannot clear it.
+**Controlled comparison — the same image, two different answers.** The image with
+fingerprint `9590206458097600543` was submitted twice, byte for byte identical:
+
+| Context | Answer |
+|---|---|
+| 3rd photo of a session that had already answered about two others | "various objects on a table, white plates, two wine glasses, white tablecloth" ❌ |
+| 1st photo after a force-quit (fresh process) | "metallic art displayed in a white storage chest… large silver bucket… golden" ✅ |
+
+The only variable is whether the process had previously answered about another
+photo. The second answer is correct; the first is a paraphrase of the *first*
+photo in that session.
+
+**Force-quitting between photos always produces correct answers.** Verified for
+three different images in a row, each in its own process:
+
+```
+session start
+ask imageID=A7B537D5 contextImageID=none fingerprint=4756827734280873181
+answer: "a top-down view of a brown cardboard box … white, paper towel-lined countertop … kitchen setting"
+
+session start
+ask imageID=AFF85CD0 contextImageID=none rgb=512x283 fingerprint=14439312451596884767
+answer: "Here is the text from the card: …"
+```
+
+**What this implies.** The retained state lives in the model instance / native
+side and dies with the process. It is not reachable through any public API on
+`ZeticMLangeLLMModel` — `resetKVState()` throws (issue 3), and reloading the
+model in-process clears it but is unshippable on storage grounds (below).
+A process restart is the only reliable clear.
 
 **The contradiction we need resolved.** The MLLM backend reports itself as *not*
 KV-persistence-capable (issue 3, hence `resetKVState()` throwing), which would

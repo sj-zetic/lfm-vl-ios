@@ -17,6 +17,10 @@ issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-
 >   (it took the container to ~35 GB in three switches). The app therefore
 >   **refuses the second photo** and asks you to relaunch, rather than answering
 >   wrongly or filling the device.
+>
+> **Working around it as a user:** force-quit and reopen between photos. Verified
+> correct for three images in a row — the same image that returned a wrong answer
+> mid-session returned the right one in a fresh process.
 > - Compiled artifacts grow ~1.5 GB per launch with no eviction. Left unchecked
 >   this **fills the device, truncates model extraction, and crashes inference
 >   with SIGSEGV** — at which point the app cannot even be reinstalled

@@ -10,3 +10,37 @@
 2026-07-31T12:19:17.902Z ask imageID=C3A717A8 contextImageID=DEA86212 rgb=384x512 fingerprint=9590206458097600543
 2026-07-31T12:19:17.902Z image changed -> proceeding WITHOUT reset (diagnostic)
 2026-07-31T12:19:25.632Z answer for imageID=C3A717A8: This image is showing various objects on a table. There are white plates containing different kinds of food, two wine glasses with visible wine, and a white tablecloth.
+2026-07-31T12:22:19.077Z === session start ===
+2026-07-31T12:22:19.077Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:22:57.339Z === session start ===
+2026-07-31T12:22:57.340Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:23:43.796Z === session start ===
+2026-07-31T12:23:43.796Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:24:08.127Z === session start ===
+2026-07-31T12:24:08.127Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:35:41.867Z === session start ===
+2026-07-31T12:35:41.867Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:36:15.664Z model loaded
+2026-07-31T12:38:07.005Z ask imageID=33A7EB1B contextImageID=none rgb=384x512 fingerprint=9590206458097600543
+2026-07-31T12:38:07.005Z first image -> nothing to clear
+2026-07-31T12:38:13.311Z answer for imageID=33A7EB1B: This image shows a piece of metallic art displayed in a white storage chest. The centerpiece is a large, silver bucket, likely made of metal, with a slightly irregular shape. It features a golden rope
+2026-07-31T12:38:23.575Z ask imageID=3824CC3A contextImageID=33A7EB1B rgb=384x512 fingerprint=4756827734280873181
+2026-07-31T12:38:23.575Z image changed -> cannot clear context on this backend
+2026-07-31T12:38:28.585Z ask imageID=3824CC3A contextImageID=33A7EB1B rgb=384x512 fingerprint=4756827734280873181
+2026-07-31T12:38:28.585Z image changed -> cannot clear context on this backend
+2026-07-31T12:38:35.049Z ask imageID=A24BAD8F contextImageID=33A7EB1B rgb=384x512 fingerprint=4756827734280873181
+2026-07-31T12:38:35.050Z image changed -> cannot clear context on this backend
+2026-07-31T12:38:42.935Z === session start ===
+2026-07-31T12:38:42.936Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:39:16.399Z model loaded
+2026-07-31T12:39:52.917Z ask imageID=A7B537D5 contextImageID=none rgb=384x512 fingerprint=4756827734280873181
+2026-07-31T12:39:52.917Z first image -> nothing to clear
+2026-07-31T12:39:59.311Z answer for imageID=A7B537D5: The image presents a top-down view of a brown cardboard box lying open on a white, paper towel-lined countertop, positioned to the left of an off-white wall, suggesting a kitchen setting. Inside the b
+2026-07-31T12:40:10.020Z ask imageID=BFDB47EA contextImageID=A7B537D5 rgb=512x283 fingerprint=14439312451596884767
+2026-07-31T12:40:10.021Z image changed -> cannot clear context on this backend
+2026-07-31T12:40:13.736Z === session start ===
+2026-07-31T12:40:13.736Z requesting model quantType=Optional(ZeticMLange.LLMQuantType.GGUF_QUANT_Q4_K_M)
+2026-07-31T12:40:45.432Z model loaded
+2026-07-31T12:40:53.025Z ask imageID=AFF85CD0 contextImageID=none rgb=512x283 fingerprint=14439312451596884767
+2026-07-31T12:40:53.025Z first image -> nothing to clear
+2026-07-31T12:40:55.754Z answer for imageID=AFF85CD0: [REDACTED — test image was a personal business card; the model transcribed its contact details]
