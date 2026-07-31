@@ -187,9 +187,7 @@ final class VisionChatViewModel: ObservableObject {
                     self.appendToLastTurn(piece)
                 }
                 self.finishLastTurn(durationMs: Self.elapsedMs(since: started))
-                NSLog("[VLM] answer for imageID=%@: %@",
-                      askedImageID.uuidString.prefix(8) as NSString,
-                      (self.turns.last?.answer.prefix(160) ?? "") as NSString)
+                TraceLog.write("answer for imageID=\(askedImageID.uuidString.prefix(8)): \(self.turns.last?.answer.prefix(200) ?? "")")
             } catch is CancellationError {
                 self.finishLastTurn(durationMs: Self.elapsedMs(since: started))
             } catch {

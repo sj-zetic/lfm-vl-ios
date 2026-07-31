@@ -42,24 +42,21 @@ actor VisionEngine {
         // NSLog rather than Logger: devicectl --console streams stdout/stderr only.
         // The fingerprint proves whether a genuinely different image reaches the
         // model, which separates "context not cleared" from "wrong image passed".
-        NSLog("[VLM] ask imageID=%@ contextImageID=%@ rgb=%dx%d fingerprint=%llu",
-              imageID.uuidString.prefix(8) as NSString,
-              (contextImageID?.uuidString.prefix(8) ?? "none") as NSString,
-              image.width, image.height, Self.fingerprint(of: image))
+        TraceLog.write("ask imageID=\(imageID.uuidString.prefix(8)) contextImageID=\(contextImageID?.uuidString.prefix(8) ?? "none") rgb=\(image.width)x\(image.height) fingerprint=\(Self.fingerprint(of: image))")
 
         switch contextImageID {
         case nil:
             // First question of the session: nothing in context to clear. Clearing
             // here crashed before any answer could be produced.
-            NSLog("[VLM] first image -> nothing to clear")
+            TraceLog.write("first image -> nothing to clear")
             contextImageID = imageID
         case imageID:
-            NSLog("[VLM] same image -> keeping context")
+            TraceLog.write("same image -> keeping context")
         default:
             // DIAGNOSTIC: the MLLM backend reports no KV persistence, which implies
             // respond() is already stateless. Proceed without clearing so an A→B
             // trace shows whether the answer actually follows the new fingerprint.
-            NSLog("[VLM] image changed -> proceeding WITHOUT reset (diagnostic)")
+            TraceLog.write("image changed -> proceeding WITHOUT reset (diagnostic)")
             contextImageID = imageID
         }
 
@@ -91,13 +88,13 @@ actor VisionEngine {
 
         do {
             try model.resetKVState()
-            NSLog("[VLM] resetKVState succeeded")
+            TraceLog.write("resetKVState succeeded")
         } catch {
             // On the MLLM (CoreML) backend this always throws — reset is only
             // implemented for KV-persistence-capable backends, i.e. LLAMA_CPP.
             // Rebuilding the model here segfaulted (SIGSEGV in close/re-init), so
             // fail loudly rather than crash or answer about the previous photo.
-            NSLog("[VLM] resetKVState THREW: %@", error.localizedDescription as NSString)
+            TraceLog.write("resetKVState THREW: \(error.localizedDescription)")
             throw VisionEngineError.contextResetUnsupported(underlying: error)
         }
     }
@@ -130,8 +127,8 @@ actor VisionEngine {
     }
 
     private func makeModel(onProgress: (@Sendable (Float) -> Void)?) async throws -> ZeticMLangeLLMModel {
-        NSLog("[VLM] requesting model quantType=%@",
-              String(describing: Constants.MLANGE.quantType) as NSString)
+        TraceLog.startSession()
+        TraceLog.write("requesting model quantType=\(String(describing: Constants.MLANGE.quantType))")
         let model = try await ZeticMLangeLLMModel(
             personalKey: Constants.MLANGE.personalAccessKey,
             name: Constants.MLANGE.modelName,
@@ -142,7 +139,7 @@ actor VisionEngine {
         // The backend actually chosen shows up in the SDK's own
         // `BackendSelectionClient` log line as `ztc_id` — `gguf_*` means the
         // llama.cpp path took effect, `coreml_*` means it fell back.
-        NSLog("[VLM] model loaded")
+        TraceLog.write("model loaded")
         return model
     }
 }
