@@ -15,12 +15,14 @@ One page. Details in [ISSUES-ENCOUNTERED.md](ISSUES-ENCOUNTERED.md) and
 compound, and neither is fixable from application code:
 
 1. `respond(…image:)` **retains vision context** across calls, so the second
-   photo returns the first photo's description.
-2. The only mechanism that clears it — reloading the model — **duplicates ~3 GB
-   on disk per reload**, which fills the device.
+   photo returns the first photo's description, and no public API clears it.
+2. The obvious remedy — reloading the model — **duplicates ~3 GB on disk per
+   load**, so it cannot be used freely. (We could not validate it: our one
+   attempt crashed, though under out-of-disk conditions that make it
+   inconclusive.)
 
-An app must therefore choose between a wrong answer and a bricked phone. Ours
-refuses the second photo and asks the user to relaunch.
+The only clear we have verified is a **process restart**. Ours therefore refuses
+the second photo and asks the user to relaunch.
 
 ---
 

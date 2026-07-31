@@ -125,21 +125,23 @@ imply `respond()` is stateless. The trace above shows it is not. Whatever holds
 that state is not reachable through any public API on `ZeticMLangeLLMModel`.
 **This is the single most important question for the SDK team.**
 
-**There is no viable workaround.** We tried reloading the whole model on every
-photo change (`VisionEngine.rebuild()`). It *does* clear the context and produce
-correct answers — but it is unshippable:
+**Reloading the model is the obvious workaround, but we could not validate it.**
+`VisionEngine.rebuild()` closes the model and creates a new one. We built it, but
+never got a clean run: the one time it executed it crashed with SIGSEGV (issue 5)
+— while the device was out of space and the extracted model was truncated, so
+that crash is not conclusive either.
 
-- Each reload **re-extracts ~1.5 GB and re-compiles ~1.5 GB**, and nothing
-  reclaims either until the next launch (issues 6 and 7).
-- Three photo switches in one session took the container from ~5 GB to
-  **roughly 35 GB** and filled a 256 GB device. It then fell back to 5.29 GB on
-  its own when iOS purged `Library/Caches` under pressure, which is why a
-  container measurement taken minutes later disagrees with what Settings showed.
+Even if it works, it is expensive by construction: each model load extracts
+~1.5 GB and compiles ~1.5 GB, and neither replaces its predecessor (issue 6). A
+reload per photo switch would multiply that.
 
-So the choice today is between a wrong answer and a bricked phone. This app now
-does neither: it refuses the second photo with an explicit message telling the
-user to relaunch. **Fixing this properly requires an SDK change** — either a way
-to clear vision context, or caching that does not duplicate the model per load.
+**What is verified** is that a **process restart** clears the context reliably —
+three consecutive photos, each in a fresh process, each answered correctly. This
+app therefore refuses the second photo with an explicit message and carries the
+photo across to the next launch.
+
+**Fixing this properly requires an SDK change** — a way to clear vision context,
+or caching that does not duplicate the model on every load.
 
 **Ask.** How should an application ask about a second image?
 

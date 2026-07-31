@@ -14,9 +14,8 @@ issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-
 >   ([issue 4](docs/ISSUES-ENCOUNTERED.md)), proven with an instrumented trace.
 >   `resetKVState()` is unsupported on the CoreML backend, and the one mechanism
 >   that does work — reloading the model — duplicates ~3 GB on disk per switch
->   (it took the container to ~35 GB in three switches). The app therefore
->   **refuses the second photo** and asks you to relaunch, rather than answering
->   wrongly or filling the device.
+>   duplicates ~3 GB on disk per load. The app therefore **refuses the second
+>   photo** and asks you to relaunch, rather than answering wrongly.
 >
 > **Working around it as a user:** force-quit and reopen between photos. Verified
 > correct for three images in a row — the same image that returned a wrong answer

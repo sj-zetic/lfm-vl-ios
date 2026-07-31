@@ -219,17 +219,17 @@ set, and neither replaces its predecessor:
   — on a *fresh install*, i.e. from two model loads.
 - `Caches/zetic_coreml_compiled` gains a new ~1.5 GB set per load (Defect 1).
 
-**Why this is severe, not just wasteful.** Reloading the model is the only way to
-clear vision context on the CoreML backend (see ISSUES-ENCOUNTERED issue 4), so
-any app that needs to switch images must pay this cost. In our test, three photo
-switches took the container from ~5 GB to **roughly 35 GB** and filled a 256 GB
-iPhone. iOS later purged `Library/Caches` under pressure, dropping it back to
-5.29 GB — so a measurement taken minutes afterwards will disagree with what the
-user saw in Settings. `zetic_coreml_compiled` reading zero entries is the
-signature of that purge.
+**Why this is severe, not just wasteful.** Growth is per *model load*, and loads
+are frequent: the device trace records **8 model loads in one testing session**.
+Over that session the container reached **roughly 35 GB** as observed in
+Settings, filling a 256 GB iPhone. iOS then purged `Library/Caches` under
+pressure and it fell back to 5.29 GB unaided — so a measurement taken minutes
+later will disagree with what the user saw. `zetic_coreml_compiled` reading zero
+entries is the signature of that purge.
 
-The two defects compound: *the only workaround for the context bug is the thing
-that fills the disk.* Neither can be fixed from application code.
+It also blocks the obvious fix for the context bug (ISSUES-ENCOUNTERED issue 4):
+clearing context requires reloading the model, and every reload pays this cost
+again. The two defects compound, and neither is fixable from application code.
 
 ## How this ends: the app bricks itself
 
