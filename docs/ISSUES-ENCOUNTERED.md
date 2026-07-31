@@ -38,7 +38,7 @@ release notes. Every project upgrading from ≤1.8 hits this.
 `ios-arm64-simulator`, so the app cannot build or run in the iOS Simulator at
 all. All development and testing must be on a physical device.
 
-## 3. `resetKVState()` unsupported on the CoreML backend — **BLOCKER, no workaround**
+## 3. `resetKVState()` unsupported on the CoreML backend — **misleading, not blocking**
 
 ```
 [VLM] resetKVState THREW: resetKVState is only supported on
@@ -48,104 +48,88 @@ all. All development and testing must be on a physical device.
 `ZeticMLangeLLMModel.resetKVState()` throws on every call when the selected
 target is `MLLM` (CoreML). It only works on `LLAMA_CPP`.
 
-**Impact.** There is no supported way to clear model context on the CoreML
-backend. See issue 4 — this is what makes the stale-image bug unfixable from
-application code.
+**Impact.** Not blocking — `cleanUp()` clears context and works on this backend
+(issue 4). But the error message says a reset is unavailable, which is false, and
+it cost us a great deal of time.
 
-**Ask.** Either implement reset for MLLM, or expose an equivalent (the SDK has
-`MultimodalPipeline.resetSession()` and a `mlange_multimodal_reset` C entry
-point, but neither is reachable from `ZeticMLangeLLMModel`).
+**Ask.** Either implement reset for MLLM as an alias for `cleanUp()`, or change
+the message to name the supported call.
 
-## 4. VLM answers describe the *previous* image — **BLOCKER, user-visible**
+## 4. VLM answers describe the *previous* image — **RESOLVED: our API misuse**
 
-**Reproduction**
+> **Resolved** by calling `ZeticMLangeLLMModel.cleanUp()` when the image changes.
+> This was not an SDK bug. The remaining SDK work is discoverability, tracked by
+> the Zetic team.
 
-1. Select photo A, ask "What is this image about?" → correct description of A.
-2. Select photo B (visually unrelated), ask the same question.
-3. **The answer describes photo A again.**
+**Symptom.** Ask about photo A, get a correct answer. Switch to photo B and ask
+again: the answer describes photo A.
 
-Confirmed by the app's author: photo A was a woman standing in a garden; after
-switching to an unrelated photo, the model re-described the garden photo.
+**Root cause** (from the SDK team, confirmed against the native source):
 
-**Instrumented proof.** The app logs an FNV fingerprint of the exact RGB buffer
-handed to `respond()`. Three consecutive photos in one session:
-
-| Question | Fingerprint | Answer |
-|---|---|---|
-| A | `13912044058735840761` | "round table, **black** surface, wine glass of deep red liquid, white plate" |
-| B | `10048966414806669662` | "**white** table, several plates of food, two wine glasses" |
-| C | `9590206458097600543` | "various objects on a table, white plates, two wine glasses, white tablecloth" |
-
-Raw trace:
+`respond(…image:)` appends to a live transcript — `lm::TurnRunner` owns
+`messages_` and re-renders it whole each turn — and
+`prompt_input::spliceStagedMedia` attaches the newly staged image to the
+**first** user turn of that transcript. So the second question is prompted with:
 
 ```
-ask imageID=3857AB0B contextImageID=none     rgb=384x512 fingerprint=13912044058735840761
-ask imageID=DEA86212 contextImageID=3857AB0B rgb=384x512 fingerprint=10048966414806669662
-ask imageID=C3A717A8 contextImageID=DEA86212 rgb=384x512 fingerprint=9590206458097600543
+user:      <photo B pixels>  "turn 1's question"
+assistant: "<photo A's description>"
+user:      "turn 2's question"      ← no image attached
 ```
 
-**Every fingerprint differs**, so a genuinely different image reaches the model
-each time. Yet all three answers describe photo A's dining scene, growing vaguer
-with each turn. Photos B and C were not dining scenes.
+Photo B's pixels land in turn 1's slot, photo A's answer is still in context, and
+the actual question carries no image at all. Repeating photo A's description is
+the *correct* output for that prompt.
 
-**Controlled comparison — the same image, two different answers.** The image with
-fingerprint `9590206458097600543` was submitted twice, byte for byte identical:
+**The fix.** Call `cleanUp()` before asking about a different image — it clears
+the transcript, the KV cache and the staged media in one call
+(`cleanUp` → `LocalLfmVLModel.resetSession` → `vl_runner_reset_session` →
+`GenericVlRunner::resetSession`):
 
-| Context | Answer |
-|---|---|
-| 3rd photo of a session that had already answered about two others | "various objects on a table, white plates, two wine glasses, white tablecloth" ❌ |
-| 1st photo after a force-quit (fresh process) | "metallic art displayed in a white storage chest… large silver bucket… golden" ✅ |
-
-The only variable is whether the process had previously answered about another
-photo. The second answer is correct; the first is a paraphrase of the *first*
-photo in that session.
-
-**Force-quitting between photos always produces correct answers.** Verified for
-three different images in a row, each in its own process:
-
-```
-session start
-ask imageID=A7B537D5 contextImageID=none fingerprint=4756827734280873181
-answer: "a top-down view of a brown cardboard box … white, paper towel-lined countertop … kitchen setting"
-
-session start
-ask imageID=AFF85CD0 contextImageID=none rgb=512x283 fingerprint=14439312451596884767
-answer: "Here is the text from the card: …"
+```swift
+if imageChanged { try model.cleanUp() }
 ```
 
-**What this implies.** The retained state lives in the model instance / native
-side and dies with the process. It is not reachable through any public API on
-`ZeticMLangeLLMModel` — `resetKVState()` throws (issue 3), and reloading the
-model in-process clears it but is unshippable on storage grounds (below).
-A process restart is the only reliable clear.
+**Do not call it between follow-up questions about the same image.** Context
+persistence across calls is intentional and is what makes follow-ups work.
 
-**The contradiction we need resolved.** The MLLM backend reports itself as *not*
-KV-persistence-capable (issue 3, hence `resetKVState()` throwing), which would
-imply `respond()` is stateless. The trace above shows it is not. Whatever holds
-that state is not reachable through any public API on `ZeticMLangeLLMModel`.
-**This is the single most important question for the SDK team.**
+Verified — three unrelated photos in one session, each answered correctly:
 
-**Reloading the model is the obvious workaround, but we could not validate it.**
-`VisionEngine.rebuild()` closes the model and creates a new one. We built it, but
-never got a clean run: the one time it executed it crashed with SIGSEGV (issue 5)
-— while the device was out of space and the extracted model was truncated, so
-that crash is not conclusive either.
+```
+ask imageID=98BFDE94 contextImageID=none     fingerprint=4756827734280873181
+answer: "five vegetables on a white paper towel — yellow pepper, red pepper…"
+ask imageID=CF3E8AC9 contextImageID=98BFDE94 fingerprint=10560470522907394792
+image changed -> calling cleanUp() … succeeded
+answer: "a hand holding a clear glass bowl containing several peeled apples"
+ask imageID=AE516749 contextImageID=CF3E8AC9 fingerprint=13075407507220586608
+image changed -> calling cleanUp() … succeeded
+answer: "a slightly blurry scene focusing on a white towel … cotton"
+```
 
-Even if it works, it is expensive by construction: each model load extracts
-~1.5 GB and compiles ~1.5 GB, and neither replaces its predecessor (issue 6). A
-reload per photo switch would multiply that.
+**Why this took so long — the discoverability defect.** The obvious candidate,
+`resetKVState()`, throws on this backend:
 
-**What is verified** is that a **process restart** clears the context reliably —
-three consecutive photos, each in a fresh process, each answered correctly. This
-app therefore refuses the second photo with an explicit message and carries the
-photo across to the next launch.
+```
+resetKVState is only supported on KV-persistence-capable backends
+(current target: MLLM)
+```
 
-**Fixing this properly requires an SDK change** — a way to clear vision context,
-or caching that does not duplicate the model on every load.
+That reads as "this backend cannot clear context", which is false. It sent this
+app through a model-reload workaround and then a force-quit-between-photos
+workaround before `cleanUp()` was found. `cleanUp()` is undocumented, is not
+obviously a session reset from its name, and the `LfmVL` reference sample hides
+the requirement by creating a fresh model per run.
 
-**Ask.** How should an application ask about a second image?
+**Being addressed by the SDK team:** error text on the unsupported KV operations
+will name `cleanUp()`; the public VL `respond` entry points on iOS, Android and
+Flutter will document the session contract; and a native regression test will pin
+where staged media lands in a multi-turn transcript.
 
-## 5. Recreating the model crashes with SIGSEGV — **BLOCKER**
+## 5. Recreating the model crashes with SIGSEGV — **low priority now**
+
+> With issue 4 resolved, recreating the model is no longer necessary. Kept for
+> the record; the crash also occurred while the device was out of space and the
+> extracted model was truncated (issue 7), so it may not be an API problem.
 
 Working around issue 4 by calling `model.close()` and re-initialising a new
 `ZeticMLangeLLMModel` in the same process crashes:
@@ -154,17 +138,9 @@ Working around issue 4 by calling `model.close()` and re-initialising a new
 App terminated due to signal 11
 ```
 
-**Caveat on this one.** The crash occurred while the device was out of space and
-the extracted model was truncated (issue 7), so it may have been a corrupt-model
-crash rather than an API limitation. With storage healthy the app now reloads
-the model on every photo change as the workaround for issue 4 — whether that is
-stable is the open question.
-
-**Ask.** Is `close()` followed by a new `init` supported in-process? Zetic's own
-`ZeticMLangeValidationLab/LfmVL` reference creates a model per run and closes it
-in a `defer`, which suggests it should be. If it is supported, it is currently
-the *only* way to ask about a second image — so its stability matters a great
-deal.
+**Ask.** Low priority: is `close()` followed by a new `init` supported
+in-process? Worth confirming, since the `LfmVL` reference creates a model per run
+and closes it in a `defer`.
 
 ## 6. Storage: ~6.3 GB for a 1.6 GB model, growing per launch — **MAJOR**
 

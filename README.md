@@ -7,27 +7,19 @@ the answer streams back token by token.
 This repo doubles as a **reproduction case** for several ZeticMLange 1.9.0
 issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md).
 
-> **Status:** works for a single photo. Two known blockers, both in the SDK
-> rather than this app:
+> **Status: working.** Multiple photos per session are answered correctly.
 >
-> - Asking about a **second** photo returns the *first* photo's description
->   ([issue 4](docs/ISSUES-ENCOUNTERED.md)), proven with an instrumented trace.
->   `resetKVState()` is unsupported on the CoreML backend, and the one mechanism
->   that does work — reloading the model — duplicates ~3 GB on disk per switch
->   duplicates ~3 GB on disk per load. The app therefore **refuses the second
->   photo** and asks you to relaunch, rather than answering wrongly.
+> The one thing to know: call `ZeticMLangeLLMModel.cleanUp()` **when the image
+> changes**, and not between follow-up questions about the same image. Without it
+> the new photo's pixels are spliced onto the first user turn of a transcript that
+> still holds the previous answer, so you get the *previous* photo's description
+> back — silently. See [issue 4](docs/ISSUES-ENCOUNTERED.md) and the
+> [integration guide](docs/LFM-VL-INTEGRATION-GUIDE.md).
 >
-> **Working around it as a user:** force-quit and reopen between photos. Verified
-> correct for three images in a row — the same image that returned a wrong answer
-> mid-session returned the right one in a fresh process.
-> - Compiled artifacts grow ~1.5 GB per launch with no eviction. Left unchecked
->   this **fills the device, truncates model extraction, and crashes inference
->   with SIGSEGV** — at which point the app cannot even be reinstalled
->   ([issue 7](docs/ISSUES-ENCOUNTERED.md)). This app ships a janitor that keeps
->   it bounded; see `Core/ModelStorageJanitor.swift` for which directories are
->   safe to clean and which break the app.
-
----
+> **Still open:** storage. A 1.6 GB model occupies 6.30 GB on a clean run and
+> grows ~1.5 GB per launch with no eviction — enough to fill a 256 GB phone.
+> `Core/ModelStorageJanitor.swift` keeps it bounded and documents which
+> directories are safe to clean.
 
 ## Requirements
 
@@ -108,37 +100,51 @@ Two details worth knowing if you touch the image path:
   costs memory and prefill time for nothing. `Constants.maxImageDimension`
   caps it.
 
-## Reproducing the headline bug (issue 4)
+## The `cleanUp()` requirement
 
-1. Launch, wait for the model to become ready.
-2. Pick photo **A**, ask "What is this image about?" → correct answer.
-3. Pick photo **B**, visually unrelated. Ask the same question.
-4. **The answer describes photo A.**
+The single most important thing to know when building on this SDK:
 
-The build logs a fingerprint of the exact pixel buffer handed to the model on
-every question, so you can confirm a different image really is being passed:
-
-```
-[VLM] ask imageID=… contextImageID=… rgb=384x512 fingerprint=…
-[VLM] image changed -> proceeding WITHOUT reset (diagnostic)
-[VLM] answer for imageID=…: …
+```swift
+// after the response stream finishes
+try model.cleanUp()
 ```
 
-Capture with `--console` as above.
-
-`resetKVState()` — the obvious remedy — throws on this backend:
+Without it, vision context accumulates across calls and **every answer describes
+the first image you asked about** — silently, with no error. `resetKVState()`,
+the obvious candidate, throws on the CoreML backend:
 
 ```
 resetKVState is only supported on KV-persistence-capable backends
 (current target: MLLM)
 ```
 
-and recreating the model instead crashes with SIGSEGV. Details in issue 3 and 5.
+which reads as "no reset available here". It isn't true; `cleanUp()` works.
+`Core/VisionEngine.swift` calls it after every generation and again when the
+image changes.
+
+To see the failure mode, comment out those calls and ask about two different
+photos. The build logs a fingerprint of the exact pixel buffer sent to the model,
+so you can confirm a genuinely different image is being passed while the answer
+stays stuck on the first:
+
+```
+ask imageID=… contextImageID=… rgb=384x512 fingerprint=…
+image changed -> calling cleanUp() … succeeded
+answer for imageID=…: …
+```
+
+Logs go to `Documents/vlm-trace.log`; pull them with:
+
+```bash
+xcrun devicectl device copy from --device "$UDID" --domain-type appDataContainer --domain-identifier com.sjk.lfmvision --source Documents/vlm-trace.log --destination ./vlm-trace.log
+```
 
 ## Documents
 
+- **[docs/LFM-VL-INTEGRATION-GUIDE.md](docs/LFM-VL-INTEGRATION-GUIDE.md)** — how to
+  build on this SDK correctly. **Start here if you are integrating.**
 - **[docs/SUMMARY-FOR-SDK-TEAM.md](docs/SUMMARY-FOR-SDK-TEAM.md)** — one page,
-  ranked asks, the key evidence. **Start here.**
+  ranked asks, the key evidence.
 - **[docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md)** — all eight issues
   in full, with reproductions.
 - **[docs/vlm-trace-example.log](docs/vlm-trace-example.log)** — raw device trace.
