@@ -105,8 +105,53 @@ Full analysis in [SDK-STORAGE-DEFECT.md](SDK-STORAGE-DEFECT.md). Summary:
   and iCloud backs up.
 
 This filled a 256 GB iPhone to the point where a 28 MB build could not install.
+See issue 7 for how that escalates into an unrecoverable crash.
 
-## 7. No GGUF build published for this model — **request**
+## 7. Storage exhaustion bricks the app: truncated extraction → SIGSEGV — **CRITICAL**
+
+This is issue 6 taken to its conclusion, and it is the most damaging behaviour we
+hit. It turned a storage annoyance into an unrecoverable app.
+
+**Sequence**
+
+1. Each launch adds ~1.5 GB of compiled artifacts to
+   `Library/Caches/zetic_coreml_compiled` and evicts nothing (issue 6). After
+   repeated launches we measured **15 entries, 7.19 GB**, container total 9.41 GB.
+2. The device reached **0 bytes free**.
+3. The SDK still attempted to extract the model. Extraction **silently
+   truncated**: `Documents/NativeLfmVL` held 19 directory entries totalling
+   ~0 bytes — the folder tree existed, the weight files did not.
+4. The SDK then loaded that incomplete model and crashed during inference:
+
+   ```
+   [VLM] ask imageID=3BB14721 contextImageID=none rgb=384x512 fingerprint=1747114493727569960
+   [VLM] first image -> nothing to clear
+   App terminated due to signal 11
+   ```
+
+5. **The app could not be recovered by reinstalling**: with 0 bytes free, even a
+   28 MB install fails —
+
+   ```
+   Not enough space for … PromiseStaging/… :
+   28284324 bytes needed, 0 bytes available (0 bytes were purged)
+   ```
+
+   The wasted 7.19 GB lives *inside the app container*, so the only way out was to
+   delete the app entirely, which also discards the 1.76 GB model and forces a
+   full re-download.
+
+**Asks**
+
+- **Fail loudly when disk space is insufficient.** A truncated extraction that
+  later segfaults during inference is the worst possible failure mode. Verify the
+  extracted artifact set (size or checksum) before handing the model to CoreML,
+  and surface a clear "insufficient storage" error.
+- **Evict compiled artifacts**, so this state is not reachable in normal use.
+- Consider whether extraction can stream from the `.ztc` rather than requiring a
+  second full copy on disk.
+
+## 8. No GGUF build published for this model — **request**
 
 Passing `quantType: .GGUF_QUANT_Q4_K_M` has no effect; backend selection returns
 CoreML regardless:
@@ -128,12 +173,18 @@ requests it, so it would take effect with no code change.
 
 ---
 
-## Lesson recorded for whoever picks this up
+## Which directories an app may safely clean
 
-Do **not** clear `Library/Caches/<bundle-id>` in an attempt to reclaim space. It
-holds `com.apple.e5rt.e5bundlecache` (Apple's Neural Engine bundle cache) and
-`Cache.db` (NSURLSession). We tried it; the result was a full ANE recompile on
-every launch plus repeated 1.76 GB re-downloads, because the SDK appears to keep
-backend-selection state there too (cf. `invalidateBackendSelectionCaches()`).
-The app's own `tmp/` is safe to sweep. `Application Support/ZeticMLangeCache`
-must not be touched — deleting the live `.ztc` forces a full re-download.
+Learned the hard way. `Core/ModelStorageJanitor.swift` encodes all of this.
+
+| Directory | Safe to delete? | Why |
+|---|---|---|
+| `tmp/` | **Yes** | The app's own temp dir. The SDK abandons ~1.5 GB of `.mlmodelc` here per launch. |
+| `Caches/zetic_coreml_compiled` | **Yes, and necessary** | Zetic's compiled cache. Entries are never reused (new hash every launch), and leaving them fills the device — see issue 7. |
+| `Caches/<bundle-id>` | **No — breaks the app** | Not Zetic's. Holds `com.apple.e5rt.e5bundlecache` (Apple's ANE bundle cache) and `Cache.db` (NSURLSession). Clearing it forced a full ANE recompile every launch *and* repeated 1.76 GB re-downloads, since the SDK appears to keep backend-selection state here too (cf. `invalidateBackendSelectionCaches()`). |
+| `Application Support/ZeticMLangeCache` | **No** | The downloaded `.ztc`. Deleting it forces a full re-download. `ModelCacheManager.prune()` is the only supported way to touch it. |
+| `Documents/NativeLfmVL` | **Not while in use** | Extracted `.mlpackage`s the loaded model reads from. |
+
+The net effect of the safe subset is bounded growth, not a small app: the SDK
+still writes the model to disk several times over per cold run, and no
+application-side cleanup can change that.

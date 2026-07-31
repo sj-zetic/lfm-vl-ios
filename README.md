@@ -7,9 +7,19 @@ the answer streams back token by token.
 This repo doubles as a **reproduction case** for several ZeticMLange 1.9.0
 issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-ENCOUNTERED.md).
 
-> **Status:** works for a single photo. Asking about a **second** photo returns
-> the *first* photo's description — see issue 4. Root cause is in the SDK, not
-> this app.
+> **Status:** works for a single photo. Two known blockers, both in the SDK
+> rather than this app:
+>
+> - Asking about a **second** photo returns the *first* photo's description
+>   ([issue 4](docs/ISSUES-ENCOUNTERED.md)). `resetKVState()` is unsupported on
+>   the CoreML backend and recreating the model segfaults, so there is no
+>   application-side remedy.
+> - Compiled artifacts grow ~1.5 GB per launch with no eviction. Left unchecked
+>   this **fills the device, truncates model extraction, and crashes inference
+>   with SIGSEGV** — at which point the app cannot even be reinstalled
+>   ([issue 7](docs/ISSUES-ENCOUNTERED.md)). This app ships a janitor that keeps
+>   it bounded; see `Core/ModelStorageJanitor.swift` for which directories are
+>   safe to clean and which break the app.
 
 ---
 

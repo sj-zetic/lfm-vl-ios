@@ -181,17 +181,54 @@ This isolates Defect 1 cleanly: the downloaded archive is correctly reused
 across launches, while the **compiled artifacts double on every launch** because
 their cache key is not stable. Nothing evicts them.
 
+## How this ends: the app bricks itself
+
+Left to run, Defect 1 does not merely waste space — it makes the app
+unrecoverable. Observed on the test device:
+
+| Measurement | Value |
+|---|---|
+| `Caches/zetic_coreml_compiled` | **7.19 GB across 15 entries** |
+| Container total | 9.41 GB |
+| Device free space | **0 bytes** |
+| `Documents/NativeLfmVL` | 19 directory entries, **~0 bytes of weights** |
+
+With the disk full, extraction **silently truncated** — the folder tree was
+created but the weight files were not written, and no error was raised. The SDK
+then loaded that incomplete model and crashed during inference with **SIGSEGV**.
+
+Reinstalling did not help, because the wasted 7.19 GB lives inside the app
+container and there was no room to stage even a 28 MB build:
+
+```
+Not enough space for … PromiseStaging/… :
+28284324 bytes needed, 0 bytes available (0 bytes were purged)
+```
+
+The only recovery was deleting the app, which also discards the 1.76 GB model.
+
+**Two asks beyond the eviction fix:** validate the extracted artifact set (size
+or checksum) before handing the model to CoreML, and surface an explicit
+insufficient-storage error rather than segfaulting later.
+
 ## Workaround currently used by this app
 
-`Core/ModelStorageJanitor.swift` runs before model init and sweeps only the
-app's own `tmp/` (safe, ~1.5 GB per launch), calls
-`ModelCacheManager.shared.prune()`, and sets `isExcludedFromBackup`. It
-deliberately does **not** touch `Library/Caches/<bundle-id>` or
-`Application Support/ZeticMLangeCache` — both broke the app when cleared.
+`Core/ModelStorageJanitor.swift` runs before model init and:
 
-There is no safe application-side fix for the compiled-artifact growth: deleting
-those entries forces a recompile, and leaving them doubles storage per launch.
-This needs the SDK fixes above.
+- calls `ModelCacheManager.shared.prune()`,
+- empties the app's own `tmp/` (~1.5 GB abandoned per launch),
+- **deletes every entry in `Caches/zetic_coreml_compiled`** — they are never
+  reused while Defect 1 stands, and leaving them is what bricks the device,
+- sets `isExcludedFromBackup` on the large directories.
+
+It deliberately does **not** touch `Library/Caches/<bundle-id>` (Apple's ANE
+cache and NSURLSession) or `Application Support/ZeticMLangeCache` (the live
+`.ztc`). Clearing either broke the app — the first with ANE recompiles and
+repeated re-downloads, the second by forcing a full re-download.
+
+This keeps growth bounded but cannot make the app small: the SDK still writes
+the model to disk four times per cold run, and the compiled set is rebuilt every
+launch. Every app on this SDK needs equivalent code today.
 
 ---
 

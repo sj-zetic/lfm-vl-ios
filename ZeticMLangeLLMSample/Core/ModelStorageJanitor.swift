@@ -33,12 +33,19 @@ enum ModelStorageJanitor {
         result.before = before.total
         log.notice("storage before cleanup:\n\(before.summary, privacy: .public)")
 
-        // Only `tmp/` is swept. Everything else this file can delete turned out to
-        // break the app rather than just shrink it — see the notes on each
-        // function below. Re-enable them one at a time, measured individually,
-        // never as a group.
+        // Deliberately narrow. `sweepAppCache()` and `pruneDownloadedArchives()`
+        // stay disabled — they delete Apple's ANE cache and the live model archive
+        // respectively, and both broke the app.
+        //
+        // `purgeCompiledArtifacts()` is enabled because leaving it off is worse:
+        // the SDK adds ~1.5 GB of compiled artifacts per launch and never evicts
+        // them (15 entries / 7.19 GB observed). That filled the device, which left
+        // model extraction truncated and crashed the app with SIGSEGV mid-inference.
+        // The entries are never reused — a new hash is compiled every launch — so
+        // deleting them costs nothing beyond the recompile that happens anyway.
         result.prunedBytes = runSDKPrune()
         result.tmpBytes = sweepTemporaryArtifacts()
+        result.compiledBytes = purgeCompiledArtifacts()
         excludeLargeDirectoriesFromBackup()
 
         let after = ModelStorageReport.current()
@@ -92,13 +99,13 @@ enum ModelStorageJanitor {
         removeContents(of: StorageLocations.appCache)
     }
 
-    /// DISABLED pending isolated measurement — do not call yet.
+    /// Deletes every compiled artifact in Zetic's own compiled-model cache.
     ///
-    /// The evidence for it still stands: after retaining the four newest entries,
-    /// the next launch compiled a brand-new hash-named copy, so the key is not
-    /// stable across launches and retained entries are never reused. But it was
-    /// shipped alongside `sweepAppCache()`, so its true cost was never measured on
-    /// its own. Re-enable only with a clean baseline and a before/after number.
+    /// Safe because the entries are never reused: retaining the four newest still
+    /// produced a brand-new hash-named copy on the following launch, so the cache
+    /// key is not stable across launches. Necessary because they accumulate at
+    /// ~1.5 GB per launch with no eviction, and a full device leaves model
+    /// extraction truncated — which crashes inference with SIGSEGV.
     private static func purgeCompiledArtifacts() -> Int64 {
         removeContents(of: StorageLocations.compiledCache)
     }
