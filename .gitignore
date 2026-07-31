@@ -1,0 +1,26 @@
+# Xcode
+*.xcuserdatad/
+*.xcworkspace/xcshareddata/
+DerivedData/
+*.ipa
+*.dSYM.zip
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Swift Package Manager
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+build/
+
+# Secrets — never commit a personal access key.
+# Set MLANGE_PERSONAL_KEY in the scheme's environment instead.
+Secrets.xcconfig
+*.local.xcconfig
