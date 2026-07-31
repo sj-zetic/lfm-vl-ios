@@ -44,7 +44,6 @@ struct AnswerBubble: View {
 
     private var statusText: String {
         switch turn.phase {
-        case .reloadingModel: return "New photo — reloading model (about 45s)…"
         case .readingImage: return "Reading image…"
         default: return "Answering…"
         }
