@@ -4,10 +4,8 @@ import ZeticMLange
 @MainActor
 final class VisionChatViewModel: ObservableObject {
     enum LoadPhase {
+        case initializing
         case downloading
-        /// The download callback has reached 1.0 but the model is still being
-        /// loaded into memory — otherwise this looks like a bar stuck at 100%.
-        case preparing
         case ready
     }
 
@@ -15,7 +13,7 @@ final class VisionChatViewModel: ObservableObject {
     @Published var question: String = Constants.Prompt.defaultQuestion
     @Published private(set) var turns: [VisionTurn] = []
 
-    @Published private(set) var loadPhase: LoadPhase = .downloading
+    @Published private(set) var loadPhase: LoadPhase = .initializing
     @Published private(set) var downloadProgress: Float = 0
     @Published private(set) var elapsedSeconds: Int = 0
     @Published private(set) var estimatedSecondsRemaining: Int?
@@ -80,7 +78,7 @@ final class VisionChatViewModel: ObservableObject {
     func retryLoad() {
         loadFailure = nil
         downloadProgress = 0
-        loadPhase = .downloading
+        loadPhase = .initializing
         estimatedSecondsRemaining = nil
         Task { await loadModel() }
     }
@@ -107,7 +105,7 @@ final class VisionChatViewModel: ObservableObject {
 
     private func recordProgress(_ progress: Float) {
         downloadProgress = progress
-        loadPhase = progress >= 1.0 ? .preparing : .downloading
+        loadPhase = progress >= 1.0 ? .initializing : .downloading
 
         // ETA from the observed rate. The SDK reports a fraction only — there are no
         // byte totals to show — so elapsed and projected time are the honest ceiling.

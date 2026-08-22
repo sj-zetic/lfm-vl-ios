@@ -90,14 +90,18 @@ struct ContentView: View {
 
     private var loadingView: some View {
         VStack(spacing: 18) {
-            ProgressView(value: viewModel.downloadProgress, total: 1.0)
-                .progressViewStyle(.linear)
-                .frame(width: 260)
+            if viewModel.loadPhase == .downloading {
+                ProgressView(value: viewModel.downloadProgress, total: 1.0)
+                    .progressViewStyle(.linear)
+                    .frame(width: 260)
+            } else {
+                ProgressView()
+            }
 
             VStack(spacing: 6) {
-                Text(viewModel.loadPhase == .preparing
-                     ? "Preparing model…"
-                     : "Downloading model — \(Int(viewModel.downloadProgress * 100))%")
+                Text(viewModel.loadPhase == .downloading
+                     ? "Downloading model — \(Int(viewModel.downloadProgress * 100))%"
+                     : "Initializing model…")
                     .font(.headline)
 
                 Text(timingText)
@@ -106,7 +110,9 @@ struct ContentView: View {
                     .monospacedDigit()
             }
 
-            Text("This is a one-time download of roughly 1–2 GB. Afterwards the model runs entirely on this device, offline.")
+            Text(viewModel.loadPhase == .downloading
+                 ? "This is a one-time download of roughly 1–2 GB. Afterwards the model runs entirely on this device, offline."
+                 : "Preparing the on-device model.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -118,7 +124,7 @@ struct ContentView: View {
                     .foregroundStyle(.green)
             }
 
-            if network.isExpensive || network.isConstrained {
+            if viewModel.loadPhase == .downloading && (network.isExpensive || network.isConstrained) {
                 Label(
                     network.isConstrained
                         ? "Low Data Mode is on — connect to Wi-Fi to avoid a slow or interrupted download."
