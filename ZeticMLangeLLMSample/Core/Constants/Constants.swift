@@ -1,11 +1,9 @@
 import Foundation
 
 struct Constants {
-    // Set MLANGE_PERSONAL_KEY in the scheme environment.
-    // Get one at https://mlange.zetic.ai/settings?tab=pat
     struct MLANGE {
         static let personalAccessKey =
-            ProcessInfo.processInfo.environment["MLANGE_PERSONAL_KEY"]
+            Bundle.main.object(forInfoDictionaryKey: "PERSONAL_KEY") as? String
         static let modelName = "changgeun/LFM2.5-VL-450M"
     }
 

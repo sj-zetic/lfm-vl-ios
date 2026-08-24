@@ -136,7 +136,7 @@ enum VisionEngineError: LocalizedError {
         case .notLoaded:
             return "The model is not loaded yet."
         case .missingPersonalAccessKey:
-            return "Set a valid MLANGE_PERSONAL_KEY in the app scheme before loading the model."
+            return "Set ZETIC_PERSONAL_KEY in .env and run scripts/generate-secrets-xcconfig.sh before building."
         case .contextResetFailed(let underlying):
             return "Could not clear the previous image from the model: \(underlying.localizedDescription)"
         }

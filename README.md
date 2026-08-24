@@ -30,12 +30,16 @@ issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-
 ## Setup
 
 1. Clone and open `ZeticMLangeLLMSample.xcodeproj`.
-2. Set `MLANGE_PERSONAL_KEY` in the scheme's environment. This keeps the key
-   out of git. Get a key at https://mlange.zetic.ai/settings?tab=pat.
+2. Copy `.env.example` to `.env`, set `ZETIC_PERSONAL_KEY`, then generate the
+   ignored build configuration. Get a key at https://mlange.zetic.ai/settings?tab=pat.
 
-   ```text
-   MLANGE_PERSONAL_KEY=dev_…
+   ```sh
+   cp .env.example .env
+   ./scripts/generate-secrets-xcconfig.sh
    ```
+
+   The generated `Secrets.xcconfig` stays out of git, but its value is embedded
+   in the built app's `Info.plist` and can be extracted from the app bundle.
 
 3. Set your signing team, select your device, and run.
 

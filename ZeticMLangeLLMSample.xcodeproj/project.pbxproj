@@ -12,11 +12,25 @@
 
 /* Begin PBXFileReference section */
 		16B8E4CA2E12859D00CF0875 /* ZeticMLangeLLMSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZeticMLangeLLMSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D2A1F0012F00000100000001 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		F1D61E2D5D7B18F7D946F68F /* Pods_ZeticMLangeLLMSample.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZeticMLangeLLMSample.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D2A1F0022F00000100000001 /* Exceptions for "ZeticMLangeLLMSample" folder in "ZeticMLangeLLMSample" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 16B8E4C92E12859D00CF0875 /* ZeticMLangeLLMSample */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		16B8E4CC2E12859D00CF0875 /* ZeticMLangeLLMSample */ = {
+			exceptions = (
+				D2A1F0022F00000100000001 /* Exceptions for "ZeticMLangeLLMSample" folder in "ZeticMLangeLLMSample" target */,
+			);
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ZeticMLangeLLMSample;
 			sourceTree = "<group>";
@@ -38,6 +52,7 @@
 		16B8E4C12E12859D00CF0875 = {
 			isa = PBXGroup;
 			children = (
+				D2A1F0012F00000100000001 /* Config.xcconfig */,
 				16B8E4CC2E12859D00CF0875 /* ZeticMLangeLLMSample */,
 				16B8E4CB2E12859D00CF0875 /* Products */,
 				A54FDC35103E553E0752E5EA /* Frameworks */,
@@ -269,6 +284,7 @@
 		};
 		16B8E4D62E12859E00CF0875 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D2A1F0012F00000100000001 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -276,15 +292,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8WTTXXB63L;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				OTHER_LDFLAGS = "-framework Accelerate";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Take a photo to ask the on-device AI about it.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a photo to ask the on-device AI about it.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_FILE = ZeticMLangeLLMSample/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -301,6 +311,7 @@
 		};
 		16B8E4D72E12859E00CF0875 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D2A1F0012F00000100000001 /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -308,15 +319,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8WTTXXB63L;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				OTHER_LDFLAGS = "-framework Accelerate";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Take a photo to ask the on-device AI about it.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a photo to ask the on-device AI about it.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_FILE = ZeticMLangeLLMSample/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

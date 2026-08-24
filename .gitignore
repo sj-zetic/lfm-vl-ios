@@ -21,6 +21,6 @@ xcuserdata/
 build/
 
 # Secrets — never commit a personal access key.
-# Set MLANGE_PERSONAL_KEY in the scheme's environment instead.
+.env
 Secrets.xcconfig
 *.local.xcconfig

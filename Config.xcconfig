@@ -1,0 +1,2 @@
+PERSONAL_KEY =
+#include? "Secrets.xcconfig"
