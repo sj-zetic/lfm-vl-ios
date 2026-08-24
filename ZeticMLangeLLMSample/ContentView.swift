@@ -27,23 +27,6 @@ struct ContentView: View {
             }
             .navigationTitle("Ask about a photo")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Section("On-device storage") {
-                            Text(viewModel.storageUsageText)
-                        }
-                        Button {
-                            Task { await viewModel.freeUpSpace() }
-                        } label: {
-                            Label("Free up space", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "internaldrive")
-                    }
-                    .accessibilityLabel("Storage")
-                }
-            }
         }
         .task { await viewModel.loadModel() }
         .onDisappear { viewModel.cleanUp() }
@@ -90,14 +73,18 @@ struct ContentView: View {
 
     private var loadingView: some View {
         VStack(spacing: 18) {
-            ProgressView(value: viewModel.downloadProgress, total: 1.0)
-                .progressViewStyle(.linear)
-                .frame(width: 260)
+            if viewModel.loadPhase == .downloading {
+                ProgressView(value: viewModel.downloadProgress, total: 1.0)
+                    .progressViewStyle(.linear)
+                    .frame(width: 260)
+            } else {
+                ProgressView()
+            }
 
             VStack(spacing: 6) {
-                Text(viewModel.loadPhase == .preparing
-                     ? "Preparing model…"
-                     : "Downloading model — \(Int(viewModel.downloadProgress * 100))%")
+                Text(viewModel.loadPhase == .downloading
+                     ? "Downloading model — \(Int(viewModel.downloadProgress * 100))%"
+                     : "Initializing model…")
                     .font(.headline)
 
                 Text(timingText)
@@ -106,19 +93,15 @@ struct ContentView: View {
                     .monospacedDigit()
             }
 
-            Text("This is a one-time download of roughly 1–2 GB. Afterwards the model runs entirely on this device, offline.")
+            Text(viewModel.loadPhase == .downloading
+                 ? "The first run may download roughly 1–2 GB. Later launches reuse available SDK-managed model cache."
+                 : "Preparing the on-device model.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 36)
 
-            if let reclaimed = viewModel.reclaimedText {
-                Label(reclaimed, systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
-
-            if network.isExpensive || network.isConstrained {
+            if viewModel.loadPhase == .downloading && (network.isExpensive || network.isConstrained) {
                 Label(
                     network.isConstrained
                         ? "Low Data Mode is on — connect to Wi-Fi to avoid a slow or interrupted download."

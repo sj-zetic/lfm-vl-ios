@@ -55,11 +55,10 @@ rotated. Redraw upright and cap the longest edge (~512 px) in one pass — a ful
 `OTHER_LDFLAGS = -framework Accelerate`. 1.9.0 is a bare `binaryTarget` and
 dropped the linker setting 1.4.5 carried.
 
-### 5. Clean storage before `init`, not during
+### 5. Leave model storage to the SDK
 
-Only `tmp/` and `Caches/zetic_coreml_compiled` are safe to empty; keep the newest
-extraction under `Documents/NativeLfmVL/<model>/`. Run it while nothing is mapped.
-See [`Core/ModelStorageJanitor.swift`](../ZeticMLangeLLMSample/Core/ModelStorageJanitor.swift).
+This app does not delete or prune downloaded, extracted, or compiled model
+artifacts. Deleting SDK-managed cache can force preparation or a new download.
 
 ### 6. Set `isExcludedFromBackup` on the large directories
 
@@ -141,10 +140,12 @@ The xcframework ships `ios-arm64` only. There is no simulator slice.
 
 Memory and prefill cost with no benefit; the vision encoder works on a small grid.
 
-### 9. Don't set `quantType` expecting a GGUF backend
+### 9. Don't expect client-side quantization selection
 
-For `LFM2.5-VL-450M` the selection service returns CoreML regardless — all nine
-candidates are CoreML. The parameter is currently inert for this model.
+In SDK 1.10.0, the `ZeticMLangeLLMModel` initializer does not expose
+`quantType`; runtime and quantization selection are SDK-managed. For
+`LFM2.5-VL-450M`, the selection service returns CoreML regardless — all nine
+candidates are CoreML.
 
 ### 10. Don't iterate install → launch → test loops casually on a real device
 
@@ -253,7 +254,7 @@ app we never modified).
 | Session contract, image conversion, build setup | [LFM-VL-INTEGRATION-GUIDE.md](LFM-VL-INTEGRATION-GUIDE.md) |
 | Model ownership, `cleanUp()` placement | [`Core/VisionEngine.swift`](../ZeticMLangeLLMSample/Core/VisionEngine.swift) |
 | `UIImage` → packed RGB | [`Core/UIImage+ZeticRGB.swift`](../ZeticMLangeLLMSample/Core/UIImage+ZeticRGB.swift) |
-| Safe storage cleanup, with the unsafe paths documented | [`Core/ModelStorageJanitor.swift`](../ZeticMLangeLLMSample/Core/ModelStorageJanitor.swift) |
+| Model-storage policy | [LFM-VL-INTEGRATION-GUIDE.md](LFM-VL-INTEGRATION-GUIDE.md) |
 | On-device file logging | [`Core/TraceLog.swift`](../ZeticMLangeLLMSample/Core/TraceLog.swift) |
 | Load phases, streaming, metrics | [`ViewModel/VisionChatViewModel.swift`](../ZeticMLangeLLMSample/ViewModel/VisionChatViewModel.swift) |
 | Everything we hit and how it was found | [ISSUES-ENCOUNTERED.md](ISSUES-ENCOUNTERED.md) |
@@ -264,9 +265,8 @@ app we never modified).
 
 ## If you are an AI agent starting a new VLM app
 
-1. Copy `Core/VisionEngine.swift`, `Core/UIImage+ZeticRGB.swift`,
-   `Core/ModelStorageJanitor.swift` and `Core/TraceLog.swift`. They encode most of
-   this document.
+1. Copy `Core/VisionEngine.swift`, `Core/UIImage+ZeticRGB.swift`, and
+   `Core/TraceLog.swift`. They encode most of this document.
 2. Apply DO 1–4 before writing any UI.
 3. Read the DON'T list in full. Every entry cost real time or real damage to a
    device.

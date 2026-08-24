@@ -99,16 +99,22 @@ actor VisionEngine {
     }
 
     private func makeModel(onProgress: (@Sendable (Float) -> Void)?) async throws -> ZeticMLangeLLMModel {
+        guard let personalAccessKey = Constants.MLANGE.personalAccessKey?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !personalAccessKey.isEmpty,
+            personalAccessKey != "dev_YOUR_KEY_HERE"
+        else {
+            throw VisionEngineError.missingPersonalAccessKey
+        }
+
         TraceLog.startSession()
-        TraceLog.write("requesting model quantType=\(String(describing: Constants.MLANGE.quantType))")
         // The candidate this device is served (prefill=GPU / decode=NPU) is memory
         // hungry, and a VL turn only needs 64-256 image tokens plus a short
         // question, so the default 2048 context buys nothing here.
         let model = try await ZeticMLangeLLMModel(
-            personalKey: Constants.MLANGE.personalAccessKey,
+            personalKey: personalAccessKey,
             name: Constants.MLANGE.modelName,
             modelMode: .RUN_AUTO,
-            quantType: Constants.MLANGE.quantType,
             initOption: LLMInitOption(nCtx: 1024),
             onDownload: onProgress
         )
@@ -122,12 +128,15 @@ actor VisionEngine {
 
 enum VisionEngineError: LocalizedError {
     case notLoaded
+    case missingPersonalAccessKey
     case contextResetFailed(underlying: Error)
 
     var errorDescription: String? {
         switch self {
         case .notLoaded:
             return "The model is not loaded yet."
+        case .missingPersonalAccessKey:
+            return "Set ZETIC_PERSONAL_KEY in .env and run scripts/generate-secrets-xcconfig.sh before building."
         case .contextResetFailed(let underlying):
             return "Could not clear the previous image from the model: \(underlying.localizedDescription)"
         }

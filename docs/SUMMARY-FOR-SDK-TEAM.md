@@ -68,4 +68,4 @@ Anyone trying to reproduce should know:
   `com.apple.e5rt.e5bundlecache` (Apple's ANE cache) and `Cache.db`, not Zetic
   data. We tried; it forced ANE recompiles *and* repeated 1.76 GB re-downloads,
   and we initially misattributed both to the SDK.
-  `ModelStorageJanitor.swift` documents which directories are safe.
+  The app now leaves model storage to the SDK rather than attempting cleanup.

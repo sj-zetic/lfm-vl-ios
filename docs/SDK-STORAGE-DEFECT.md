@@ -261,24 +261,11 @@ The only recovery was deleting the app, which also discards the 1.76 GB model.
 or checksum) before handing the model to CoreML, and surface an explicit
 insufficient-storage error rather than segfaulting later.
 
-## Workaround currently used by this app
+## Current app behavior
 
-`Core/ModelStorageJanitor.swift` runs before model init and:
-
-- calls `ModelCacheManager.shared.prune()`,
-- empties the app's own `tmp/` (~1.5 GB abandoned per launch),
-- **deletes every entry in `Caches/zetic_coreml_compiled`** — they are never
-  reused while Defect 1 stands, and leaving them is what bricks the device,
-- sets `isExcludedFromBackup` on the large directories.
-
-It deliberately does **not** touch `Library/Caches/<bundle-id>` (Apple's ANE
-cache and NSURLSession) or `Application Support/ZeticMLangeCache` (the live
-`.ztc`). Clearing either broke the app — the first with ANE recompiles and
-repeated re-downloads, the second by forcing a full re-download.
-
-This keeps growth bounded but cannot make the app small: the SDK still writes
-the model to disk four times per cold run, and the compiled set is rebuilt every
-launch. Every app on this SDK needs equivalent code today.
+The earlier application-side cleanup experiment is no longer used. This app
+does not delete or prune SDK-managed model storage because doing so can force
+model preparation or a full re-download.
 
 ---
 

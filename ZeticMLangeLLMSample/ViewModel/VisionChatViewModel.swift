@@ -4,10 +4,8 @@ import ZeticMLange
 @MainActor
 final class VisionChatViewModel: ObservableObject {
     enum LoadPhase {
+        case initializing
         case downloading
-        /// The download callback has reached 1.0 but the model is still being
-        /// loaded into memory — otherwise this looks like a bar stuck at 100%.
-        case preparing
         case ready
     }
 
@@ -15,25 +13,12 @@ final class VisionChatViewModel: ObservableObject {
     @Published var question: String = Constants.Prompt.defaultQuestion
     @Published private(set) var turns: [VisionTurn] = []
 
-    @Published private(set) var loadPhase: LoadPhase = .downloading
+    @Published private(set) var loadPhase: LoadPhase = .initializing
     @Published private(set) var downloadProgress: Float = 0
     @Published private(set) var elapsedSeconds: Int = 0
     @Published private(set) var estimatedSecondsRemaining: Int?
     @Published private(set) var isGenerating = false
     @Published var loadFailure: String?
-
-    /// Disk reclaimed by the janitor, and the container size after it ran.
-    @Published private(set) var reclaimedBytes: Int64 = 0
-    @Published private(set) var storageUsage: Int64 = 0
-
-    var reclaimedText: String? {
-        guard reclaimedBytes > 0 else { return nil }
-        return "Reclaimed \(ModelStorageReport.format(reclaimedBytes)) of leftover model files"
-    }
-
-    var storageUsageText: String {
-        ModelStorageReport.format(storageUsage)
-    }
 
     private let engine = VisionEngine()
     private var generationTask: Task<Void, Never>?
@@ -62,9 +47,6 @@ final class VisionChatViewModel: ObservableObject {
         startLoadClock()
         defer { stopLoadClock() }
 
-        // Before the model is initialised, so nothing being deleted is in use.
-        await reclaimStorage()
-
         do {
             try await engine.load { progress in
                 Task { @MainActor [weak self] in
@@ -80,34 +62,14 @@ final class VisionChatViewModel: ObservableObject {
     func retryLoad() {
         loadFailure = nil
         downloadProgress = 0
-        loadPhase = .downloading
+        loadPhase = .initializing
         estimatedSecondsRemaining = nil
         Task { await loadModel() }
     }
 
-    /// Runs the janitor off the main thread and publishes what it reclaimed.
-    private func reclaimStorage() async {
-        let result = await Task.detached(priority: .utility) {
-            ModelStorageJanitor.reclaim()
-        }.value
-        reclaimedBytes = result.reclaimed
-        storageUsage = result.after
-    }
-
-    /// Re-runs cleanup on demand, for the storage menu.
-    func freeUpSpace() async {
-        await reclaimStorage()
-    }
-
-    func refreshStorageUsage() async {
-        storageUsage = await Task.detached(priority: .utility) {
-            ModelStorageReport.current().total
-        }.value
-    }
-
     private func recordProgress(_ progress: Float) {
         downloadProgress = progress
-        loadPhase = progress >= 1.0 ? .preparing : .downloading
+        loadPhase = progress >= 1.0 ? .initializing : .downloading
 
         // ETA from the observed rate. The SDK reports a fraction only — there are no
         // byte totals to show — so elapsed and projected time are the honest ceiling.
