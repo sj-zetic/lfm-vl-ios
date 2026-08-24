@@ -16,10 +16,8 @@ issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-
 > back — silently. See [issue 4](docs/ISSUES-ENCOUNTERED.md) and the
 > [integration guide](docs/LFM-VL-INTEGRATION-GUIDE.md).
 >
-> **Still open:** storage. A 1.6 GB model occupies 6.30 GB on a clean run and
-> grows ~1.5 GB per launch with no eviction — enough to fill a 256 GB phone.
-> `Core/ModelStorageJanitor.swift` keeps it bounded and documents which
-> directories are safe to clean.
+> Model storage is managed by ZeticMLange; this app does not delete or prune
+> model artifacts.
 
 ## Requirements
 
@@ -32,13 +30,11 @@ issues found while building it — see [docs/ISSUES-ENCOUNTERED.md](docs/ISSUES-
 ## Setup
 
 1. Clone and open `ZeticMLangeLLMSample.xcodeproj`.
-2. Provide your access key. Either set `MLANGE_PERSONAL_KEY` in the scheme's
-   environment (preferred — keeps it out of git), or edit
-   `ZeticMLangeLLMSample/Core/Constants/Constants.swift`:
+2. Set `MLANGE_PERSONAL_KEY` in the scheme's environment. This keeps the key
+   out of git. Get a key at https://mlange.zetic.ai/settings?tab=pat.
 
-   ```swift
-   static let personalAccessKey = "dev_…"          // https://mlange.zetic.ai/settings?tab=pat
-   static let modelName = "changgeun/LFM2.5-VL-450M"
+   ```text
+   MLANGE_PERSONAL_KEY=dev_…
    ```
 
 3. Set your signing team, select your device, and run.
@@ -83,11 +79,9 @@ Two things that cost us time:
 
 | File | Role |
 |---|---|
-| `ContentView.swift` | Image picker, transcript, composer, storage menu |
+| `ContentView.swift` | Image picker, transcript, composer |
 | `Core/VisionEngine.swift` | Actor owning `ZeticMLangeLLMModel`; context handling |
 | `Core/UIImage+ZeticRGB.swift` | `UIImage` → packed 24-bit RGB the model expects |
-| `Core/ModelStorageJanitor.swift` | Reclaims leftover model files (see caveats) |
-| `Core/ModelStorageReport.swift` | Per-area byte accounting for the SDK's directories |
 | `ViewModel/VisionChatViewModel.swift` | Load, ask, stream, cancel, metrics |
 | `View/AnswerBubble.swift` | Streaming states, timings, copy/share |
 

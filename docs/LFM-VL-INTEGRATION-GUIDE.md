@@ -210,26 +210,14 @@ several times over:
 | Staged | `tmp/` |
 
 The compiled set is rebuilt on each cold start and old sets are not evicted, so
-an app that is opened repeatedly grows steadily. Budget for it, warn users before
-the first download, and clean up what is safe to clean.
+an app that is opened repeatedly grows steadily. Budget for it and warn users
+before the first download.
 
-### What an app may and may not delete
+### Model storage ownership
 
-| Directory | Safe? | Notes |
-|---|---|---|
-| `tmp/` | **Yes** | Your app's own temp dir; the SDK leaves ~1.5 GB of `.mlmodelc` here |
-| `Caches/zetic_coreml_compiled` | **Yes** | Recompiled on next launch |
-| `Documents/NativeLfmVL/<model>/<hash>` | **Stale ones only** | Keep the newest; never delete while the model is loaded |
-| `Caches/<your-bundle-id>` | **No** | Apple's `com.apple.e5rt.e5bundlecache` (ANE) and `Cache.db` live here. Clearing it forces ANE recompiles and can trigger re-downloads |
-| `Application Support/ZeticMLangeCache` | **No** | The downloaded `.ztc`. Deleting it forces a full re-download |
-
-Run cleanup **before** `ZeticMLangeLLMModel.init`, when nothing is mapped.
-Working implementation:
-[`Core/ModelStorageJanitor.swift`](../ZeticMLangeLLMSample/Core/ModelStorageJanitor.swift).
-
-Also set `isExcludedFromBackup` on the large directories — `Documents/` is
-included in iCloud backups by default, and multiple GB per app counts against the
-user's quota.
+The SDK manages downloaded, extracted, and compiled model artifacts. This app
+does not delete or prune model storage; deleting SDK-managed cache can force
+model preparation or a new download.
 
 **If the device runs out of space**, extraction can truncate silently — the
 directory tree appears but weight files are missing — and inference then crashes

@@ -27,23 +27,6 @@ struct ContentView: View {
             }
             .navigationTitle("Ask about a photo")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Section("On-device storage") {
-                            Text(viewModel.storageUsageText)
-                        }
-                        Button {
-                            Task { await viewModel.freeUpSpace() }
-                        } label: {
-                            Label("Free up space", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "internaldrive")
-                    }
-                    .accessibilityLabel("Storage")
-                }
-            }
         }
         .task { await viewModel.loadModel() }
         .onDisappear { viewModel.cleanUp() }
@@ -111,18 +94,12 @@ struct ContentView: View {
             }
 
             Text(viewModel.loadPhase == .downloading
-                 ? "This is a one-time download of roughly 1–2 GB. Afterwards the model runs entirely on this device, offline."
+                 ? "The first run may download roughly 1–2 GB. Later launches reuse available SDK-managed model cache."
                  : "Preparing the on-device model.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 36)
-
-            if let reclaimed = viewModel.reclaimedText {
-                Label(reclaimed, systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
 
             if viewModel.loadPhase == .downloading && (network.isExpensive || network.isConstrained) {
                 Label(

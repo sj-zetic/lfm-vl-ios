@@ -212,8 +212,9 @@ hit. It turned a storage annoyance into an unrecoverable app.
 
 ## 8. No GGUF build published for this model — **request**
 
-Passing `quantType: .GGUF_QUANT_Q4_K_M` has no effect; backend selection returns
-CoreML regardless:
+In SDK 1.10.0, the `ZeticMLangeLLMModel` initializer does not accept
+`quantType`; runtime and quantization selection are SDK-managed. The observed
+selection for this model returns CoreML:
 
 ```json
 "selection_mode": "AUTO", "total": 9,
@@ -227,14 +228,16 @@ plausibly fix issues 3, 4 and 6 at once — `resetKVState()` is supported on tha
 target, and a Q4_K_M build of a 450M model is a few hundred MB rather than four
 copies of 1.5 GB.
 
-**Ask.** Can a GGUF build of LFM2.5-VL-450M be published? This app already
-requests it, so it would take effect with no code change.
+**Ask.** Can a GGUF build of LFM2.5-VL-450M be published and selected by the
+SDK?
 
 ---
 
-## Which directories an app may safely clean
+## Historical cleanup experiment
 
-Learned the hard way. `Core/ModelStorageJanitor.swift` encodes all of this.
+The table below records a previous experiment. The app no longer performs this
+cleanup: model storage is SDK-managed, and deleting it can force preparation or
+redownload.
 
 | Directory | Safe to delete? | Why |
 |---|---|---|
