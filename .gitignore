@@ -21,6 +21,15 @@ xcuserdata/
 build/
 
 # Secrets — never commit a personal access key.
-.env
-Secrets.xcconfig
+/.env
+/ios/Secrets.xcconfig
+/ios/.Secrets.xcconfig.*
 *.local.xcconfig
+
+# Android local build and secret configuration.
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/secrets.properties
+/android/app/secrets.properties

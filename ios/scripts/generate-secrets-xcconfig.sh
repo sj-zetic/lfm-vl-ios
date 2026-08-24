@@ -1,14 +1,15 @@
 #!/bin/sh
 set -eu
 
-repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ios_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+repo_dir=$(CDPATH= cd -- "$ios_dir/.." && pwd)
 env_path=${1:-"$repo_dir/.env"}
-output_path="$repo_dir/Secrets.xcconfig"
+output_path="$ios_dir/Secrets.xcconfig"
 personal_key=""
 
 write_config() {
     umask 077
-    temporary_path=$(mktemp "$repo_dir/.Secrets.xcconfig.XXXXXX")
+    temporary_path=$(mktemp "$ios_dir/.Secrets.xcconfig.XXXXXX")
     trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
     printf '%s\n' "// Generated from .env. Do not commit." "PERSONAL_KEY = $1" > "$temporary_path"
     chmod 600 "$temporary_path"
