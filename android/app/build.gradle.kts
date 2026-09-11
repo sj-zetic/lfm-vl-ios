@@ -11,7 +11,9 @@ val env = Properties().apply {
         rootEnv.inputStream().use(::load)
     }
 }
-val personalKey = env.getProperty("ZETIC_PERSONAL_KEY")?.trim().orEmpty()
+val environmentPersonalKey = providers.environmentVariable("ZETIC_PERSONAL_KEY").orNull?.trim()
+val personalKey = environmentPersonalKey?.takeIf { it.isNotBlank() }
+    ?: env.getProperty("ZETIC_PERSONAL_KEY")?.trim().orEmpty()
 val usablePersonalKey = personalKey.takeIf {
     it.isNotBlank() && !it.contains("YOUR_KEY", ignoreCase = true) && !it.startsWith("dev_YOUR")
 }.orEmpty()
@@ -52,7 +54,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("com.zeticai.mlange:mlange:1.10.0")
+    implementation("com.zeticai.mlange:mlange:0.0.0-internal.4d3e4535")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")

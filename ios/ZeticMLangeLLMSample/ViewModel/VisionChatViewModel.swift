@@ -18,6 +18,7 @@ final class VisionChatViewModel: ObservableObject {
     @Published private(set) var elapsedSeconds: Int = 0
     @Published private(set) var estimatedSecondsRemaining: Int?
     @Published private(set) var isGenerating = false
+    @Published private(set) var isLoadingModel = false
     @Published var loadFailure: String?
 
     private let engine = VisionEngine()
@@ -39,13 +40,18 @@ final class VisionChatViewModel: ObservableObject {
     }
 
     var hasTranscript: Bool { !turns.isEmpty }
+    var canRemoveDownloadedModel: Bool { !isGenerating && !isLoadingModel }
 
     // MARK: - Model lifecycle
 
     func loadModel() async {
         guard loadPhase != .ready, loadFailure == nil else { return }
+        isLoadingModel = true
         startLoadClock()
-        defer { stopLoadClock() }
+        defer {
+            isLoadingModel = false
+            stopLoadClock()
+        }
 
         do {
             try await engine.load { progress in
@@ -183,6 +189,15 @@ final class VisionChatViewModel: ObservableObject {
         cancelGeneration()
         stopLoadClock()
         Task { [engine] in await engine.close() }
+    }
+
+    /// The caller checks this before presenting destructive confirmation, so a live answer is
+    /// never interrupted to remove model artifacts.
+    func closeModelForRemoval() async -> Bool {
+        guard canRemoveDownloadedModel else { return false }
+        await engine.close()
+        loadPhase = .initializing
+        return true
     }
 
     // MARK: - Transcript updates

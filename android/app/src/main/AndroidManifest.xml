@@ -3,7 +3,9 @@
 
     <application
         android:allowBackup="false"
-        android:label="LFM Vision"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Zetic Lens"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.LFMVision">
         <activity android:name=".MainActivity" android:exported="true">

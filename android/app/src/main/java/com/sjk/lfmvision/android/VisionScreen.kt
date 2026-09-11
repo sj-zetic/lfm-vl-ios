@@ -46,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +80,8 @@ fun VisionScreen(viewModel: VisionViewModel) {
     val context = LocalContext.current
     var replacementUri by remember { mutableStateOf<Uri?>(null) }
     var zoom by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var removalConfirmationOpen by remember { mutableStateOf(false) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { if (state.hasTranscript) replacementUri = it else viewModel.selectImage(it) }
     }
@@ -95,6 +98,8 @@ fun VisionScreen(viewModel: VisionViewModel) {
         onRetry = viewModel::retryInitialize,
         onRegenerate = viewModel::regenerateLast,
         onZoom = { zoom = true },
+        onDownloadModel = viewModel::approveModelDownload,
+        onOpenSettings = { settingsOpen = true },
     )
     replacementUri?.let { candidate ->
         AlertDialog(
@@ -106,6 +111,26 @@ fun VisionScreen(viewModel: VisionViewModel) {
         )
     }
     if (zoom) state.preview?.let { FullScreenImage(it) { zoom = false } }
+    if (settingsOpen) {
+        ModelSettingsDialog(
+            canRemoveDownloadedModel = state.canRemoveDownloadedModel,
+            modelStatus = state.status,
+            onRemove = {
+                settingsOpen = false
+                removalConfirmationOpen = true
+            },
+            onDismiss = { settingsOpen = false },
+        )
+    }
+    if (removalConfirmationOpen) {
+        ModelRemovalConfirmation(
+            onRemove = {
+                removalConfirmationOpen = false
+                viewModel.removeDownloadedModel()
+            },
+            onDismiss = { removalConfirmationOpen = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,21 +145,48 @@ internal fun VisionContent(
     onRetry: () -> Unit,
     onRegenerate: () -> Unit,
     onZoom: () -> Unit,
+    onDownloadModel: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     MaterialTheme {
         Scaffold(
             contentWindowInsets = WindowInsets.safeDrawing,
-            topBar = { TopAppBar(title = { Text("Ask about a photo") }) },
+            topBar = {
+                TopAppBar(
+                    title = { Text("Ask about a photo") },
+                    actions = { TextButton(onClick = onOpenSettings) { Text("Settings") } },
+                )
+            },
             bottomBar = {
                 if (state.status == ModelStatus.READY || state.status == ModelStatus.GENERATING) Composer(state, onPromptChanged, onAsk, onStop)
             },
         ) { padding ->
             when (state.status) {
                 ModelStatus.FAILURE -> FailureView(state.message, onRetry, Modifier.padding(padding))
+                ModelStatus.AWAITING_CONSENT -> DownloadConsentView(onDownloadModel, Modifier.padding(padding))
+                ModelStatus.DOWNLOADING -> DownloadingView(state.message, Modifier.padding(padding))
                 ModelStatus.INITIALIZING -> LoadingView(state.message, Modifier.padding(padding))
+                ModelStatus.REMOVING -> RemovingModelView(Modifier.padding(padding))
                 else -> MainView(state, onLibrary, onCamera, onAsk, onRegenerate, onZoom, Modifier.padding(padding))
             }
         }
+    }
+}
+
+@Composable private fun DownloadConsentView(download: () -> Unit, modifier: Modifier) = Box(modifier.fillMaxSize(), Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Download the on-device model", style = MaterialTheme.typography.titleMedium)
+        Text("The photo model downloads only after you approve it. It stays on this phone.")
+        Button(onClick = download) { Text("Download model") }
+    }
+}
+
+@Composable private fun DownloadingView(message: String, modifier: Modifier) = Box(modifier.fillMaxSize(), Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CircularProgressIndicator()
+        Text("Model download in progress", style = MaterialTheme.typography.titleMedium)
+        Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        Text("You can use the model when this download finishes.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -145,11 +197,52 @@ internal fun VisionContent(
         Text("Preparing the on-device model.", style = MaterialTheme.typography.bodySmall)
     }
 }
+
+@Composable private fun RemovingModelView(modifier: Modifier) = Box(modifier.fillMaxSize(), Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CircularProgressIndicator()
+        Text("Removing downloaded model…", style = MaterialTheme.typography.titleMedium)
+    }
+}
+
 @Composable private fun FailureView(message: String, retry: () -> Unit, modifier: Modifier) = Box(modifier.fillMaxSize(), Alignment.Center) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Model unavailable", style = MaterialTheme.typography.titleLarge); Text(message); Button(onClick = retry) { Text("Try again") }
     }
 }
+
+@Composable private fun ModelSettingsDialog(
+    canRemoveDownloadedModel: Boolean,
+    modelStatus: ModelStatus,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) = AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Settings") },
+    text = {
+        Text(
+            if (canRemoveDownloadedModel) {
+                "Remove downloaded model. Downloading it again will require your consent."
+            } else if (modelStatus in setOf(ModelStatus.GENERATING, ModelStatus.INITIALIZING, ModelStatus.REMOVING)) {
+                "Finish the active response before removing the downloaded model."
+            } else {
+                "There is no downloaded model to remove."
+            },
+        )
+    },
+    confirmButton = {
+        Button(onClick = onRemove, enabled = canRemoveDownloadedModel) { Text("Remove downloaded model") }
+    },
+    dismissButton = { Button(onClick = onDismiss) { Text("Close") } },
+)
+
+@Composable private fun ModelRemovalConfirmation(onRemove: () -> Unit, onDismiss: () -> Unit) = AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Remove downloaded model?") },
+    text = { Text("Only the downloaded model will be removed. Your photos, prompts, and conversations will stay on this phone.") },
+    confirmButton = { Button(onClick = onRemove) { Text("Remove model") } },
+    dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } },
+)
 
 @Composable private fun MainView(state: VisionUiState, library: () -> Unit, camera: () -> Unit, ask: (String?) -> Unit, regenerate: () -> Unit, zoom: () -> Unit, modifier: Modifier) {
     val listState = rememberLazyListState()

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = VisionChatViewModel()
+    @StateObject private var modelDownload = VisionModelDownloadCoordinator()
     @StateObject private var network = NetworkPathObserver()
 
     @State private var showCamera = false
@@ -10,6 +11,9 @@ struct ContentView: View {
     @State private var pickerFailure: String?
     @State private var showZoom = false
     @State private var pendingReplacement: UIImage?
+    @State private var hasDeferredModelDownload = false
+    @State private var isRemoveDownloadedModelConfirmationPresented = false
+    @State private var modelRemovalMessage: String?
     @FocusState private var questionFocused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -17,7 +21,15 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let failure = viewModel.loadFailure {
+                if !modelDownload.hasDownloadConsent && !hasDeferredModelDownload {
+                    modelDownloadConsentView
+                } else if !modelDownload.hasDownloadConsent {
+                    modelNotDownloadedView
+                } else if let failure = modelDownload.failureMessage {
+                    backgroundDownloadFailureView(failure)
+                } else if modelDownload.isBackgroundDownloadInProgress {
+                    backgroundDownloadView
+                } else if let failure = viewModel.loadFailure {
                     loadFailureView(failure)
                 } else if !viewModel.isModelReady {
                     loadingView
@@ -27,8 +39,16 @@ struct ContentView: View {
             }
             .navigationTitle("Ask about a photo")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { modelSettingsMenu }
         }
-        .task { await viewModel.loadModel() }
+        .task {
+            modelDownload.resumeIfConsented()
+            await loadInstalledModelIfNeeded()
+        }
+        .onChange(of: modelDownload.phase) { _, phase in
+            guard phase == .installed else { return }
+            Task { await loadInstalledModelIfNeeded() }
+        }
         .onDisappear { viewModel.cleanUp() }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { propose($0) }
@@ -57,6 +77,21 @@ struct ContentView: View {
         } message: {
             Text("The answers for the current photo will be cleared.")
         }
+        .confirmationDialog(
+            "Remove downloaded model?",
+            isPresented: $isRemoveDownloadedModelConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Remove model", role: .destructive, action: removeDownloadedModel)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes only the downloaded vision model. Your photos and conversations stay on this phone.")
+        }
+        .alert("Model storage", isPresented: modelRemovalAlertBinding) {
+            Button("OK") { modelRemovalMessage = nil }
+        } message: {
+            Text(modelRemovalMessage ?? "")
+        }
     }
 
     /// A real binding — `.constant(...)` left the alert unable to clear its own state
@@ -69,7 +104,92 @@ struct ContentView: View {
         Binding(get: { pendingReplacement != nil }, set: { if !$0 { pendingReplacement = nil } })
     }
 
+    private var modelRemovalAlertBinding: Binding<Bool> {
+        Binding(get: { modelRemovalMessage != nil }, set: { if !$0 { modelRemovalMessage = nil } })
+    }
+
     // MARK: - Load states
+
+    private var modelDownloadConsentView: some View {
+        ContentUnavailableView {
+            Label("Download the vision model?", systemImage: "arrow.down.circle")
+        } description: {
+            Text("The model is downloaded in the background after you agree. It may use 1–2 GB of data and storage, and stays only on this phone.")
+        } actions: {
+            Button("Download model") { modelDownload.recordConsent() }
+                .buttonStyle(.borderedProminent)
+            Button("Not now") { hasDeferredModelDownload = true }
+        }
+    }
+
+    private var modelNotDownloadedView: some View {
+        ContentUnavailableView {
+            Label("Vision model required", systemImage: "arrow.down.circle")
+        } description: {
+            Text("Download the on-device model when you are ready to ask about a photo.")
+        } actions: {
+            Button("Download model") { hasDeferredModelDownload = false }
+                .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var backgroundDownloadView: some View {
+        VStack(spacing: 18) {
+            if case let .downloading(progress) = modelDownload.phase, let progress {
+                ProgressView(value: progress, total: 1.0)
+                    .progressViewStyle(.linear)
+                    .frame(width: 260)
+            } else {
+                ProgressView()
+            }
+
+            VStack(spacing: 6) {
+                Text(modelDownload.phase.title)
+                    .font(.headline)
+                    .accessibilityIdentifier("background-model-download-headline")
+                if let detail = modelDownload.phase.detail {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("background-model-download-detail")
+                }
+            }
+
+            Text("You can keep this app open or leave it. Asking about a photo will be available when the download finishes.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+
+            if network.isExpensive || network.isConstrained {
+                Label(
+                    network.isConstrained
+                        ? "Low Data Mode is on — connect to Wi-Fi to avoid a slow or interrupted download."
+                        : "You're on cellular. This download is large — Wi-Fi is strongly recommended.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .multilineTextAlignment(.leading)
+                .padding(12)
+                .background(Color.orange.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 28)
+            }
+        }
+        .padding()
+    }
+
+    private func backgroundDownloadFailureView(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("Model download unavailable", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Try again") { modelDownload.retry() }
+                .buttonStyle(.borderedProminent)
+        }
+    }
 
     private var loadingView: some View {
         VStack(spacing: 18) {
@@ -136,6 +256,52 @@ struct ContentView: View {
         } actions: {
             Button("Try again") { viewModel.retryLoad() }
                 .buttonStyle(.borderedProminent)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var modelSettingsMenu: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button("Remove downloaded model", role: .destructive, action: requestDownloadedModelRemoval)
+                    .disabled(modelDownload.isRemoving)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("Model settings")
+        }
+    }
+
+    private func loadInstalledModelIfNeeded() async {
+        guard modelDownload.canUseDownloadedModel else { return }
+        await viewModel.loadModel()
+    }
+
+    private func requestDownloadedModelRemoval() {
+        guard modelDownload.isBackgroundDownloadInProgress || viewModel.canRemoveDownloadedModel else {
+            modelRemovalMessage = "Finish the current answer or model preparation before removing the downloaded model."
+            return
+        }
+        isRemoveDownloadedModelConfirmationPresented = true
+    }
+
+    private func removeDownloadedModel() {
+        Task {
+            if !modelDownload.isBackgroundDownloadInProgress,
+               !(await viewModel.closeModelForRemoval()) {
+                modelRemovalMessage = "Finish the current answer or model preparation before removing the downloaded model."
+                return
+            }
+
+            switch await modelDownload.removeDownloadedModel() {
+            case .removed:
+                hasDeferredModelDownload = false
+                modelRemovalMessage = "The downloaded model was removed. Downloading it again will require your approval."
+            case .inUse:
+                modelRemovalMessage = "Finish the current answer before removing the downloaded model."
+            case let .failed(message):
+                modelRemovalMessage = message
+            }
         }
     }
 

@@ -126,7 +126,7 @@
 			mainGroup = 16B8E4C12E12859D00CF0875;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				16555B602E1286920003EA27 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
+				16555B602E1286920003EA27 /* XCRemoteSwiftPackageReference "mlange_sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 16B8E4CB2E12859D00CF0875 /* Products */;
@@ -360,12 +360,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		16555B602E1286920003EA27 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */ = {
+		16555B602E1286920003EA27 /* XCRemoteSwiftPackageReference "mlange_sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/zetic-ai/ZeticMLangeiOS.git";
+			repositoryURL = "git@github.com:zetic-ai/mlange_sdk.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.10.0;
+				version = "0.0.0-internal.035dd5a8";
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -373,7 +373,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		16555B612E1286920003EA27 /* ZeticMLange */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 16555B602E1286920003EA27 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */;
+			package = 16555B602E1286920003EA27 /* XCRemoteSwiftPackageReference "mlange_sdk" */;
 			productName = ZeticMLange;
 		};
 /* End XCSwiftPackageProductDependency section */
