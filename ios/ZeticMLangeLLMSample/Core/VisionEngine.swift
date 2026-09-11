@@ -115,6 +115,7 @@ actor VisionEngine {
             personalKey: personalAccessKey,
             name: Constants.MLANGE.modelName,
             modelMode: .RUN_AUTO,
+            cacheHandlingPolicy: .KEEP_EXISTING,
             initOption: LLMInitOption(nCtx: 1024),
             onDownload: onProgress
         )
